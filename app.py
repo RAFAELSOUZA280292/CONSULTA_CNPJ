@@ -220,15 +220,24 @@ def extract_data_for_display(response):
         for reg in registrations:
             ie_number = reg.get('number', 'N/A')
             uf = reg.get('state', 'N/A')
-            enabled = "SIM" if reg.get('enabled', False) else "NÃO"
+            enabled_text = "SIM" if reg.get('enabled', False) else "NÃO"
             status_text = reg.get('status', {}).get('text', 'N/A')
             type_text = reg.get('type', {}).get('text', 'N/A')
 
+            # Emojis para Habilitada
+            enabled_emoji = "🟢" if enabled_text == "SIM" else "🔴"
+
+            # Emojis para Status (generalizando para incluir 'Bloqueado', 'Cancelado', 'Suspenso' como negativos)
+            status_emoji = ""
+            if "Sem restrição" in status_text or "ATIVA" in status_text.upper():
+                status_emoji = "🟢"
+            elif "Bloqueado" in status_text or "Cancelado" in status_text or "Suspenso" in status_text or "Baixada" in status_text or "Inapta" in status_text:
+                status_emoji = "🔴"
+            
+            # Construindo a string formatada para a IE
             reg_info = (
-                f"Nº IE: {ie_number}\n"
-                f"UF: {uf}\n"
-                f"Habilitada: {enabled}\n"
-                f"Status: {status_text}\n"
+                f"UF: {uf} | IE: {ie_number} | Habilitada: {enabled_text} {enabled_emoji}\n"
+                f"Status: {status_text} {status_emoji}\n"
                 f"TIPO: {type_text}"
             )
             formatted_registrations_list.append(reg_info)
@@ -248,7 +257,6 @@ def styled_row(label, value, row_index, is_multiline_content=False):
     bg_color = color1 if row_index % 2 == 0 else color2
     
     # Adapta a altura mínima para campos de linha única ou multi-linha
-    # Se is_multiline_content for True, a altura será auto, caso contrário, min-height
     min_height_style = "min-height: 25px;" if not is_multiline_content else ""
 
     html_content = f"""
@@ -343,7 +351,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                     value = "🟢 Ativa"
             elif key == "Optante Simples Nacional":
                 if "Sim" in value: # Verifica se "Sim" está na string
-                    value = "🟢 Sim"
+                    value = "�� Sim"
                 elif "Não" in value: # Verifica se "Não" está na string
                     value = "🔴 Não"
             elif key == "Optante SIMEI":
@@ -357,8 +365,6 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             row_idx += 1
 
     with tab_address:
-        # Aumentar o row_idx para continuar a contagem de cores se as abas fossem sequenciais,
-        # mas como são separadas, cada aba começa com 0.
         row_idx = 0 
         fields = [
             ("Logradouro", "Logradouro"),
@@ -523,7 +529,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             st.warning("Nenhum dado para salvar em Excel.")
 
     # Botão Gerar TXT CNPJ
-    if st.button("�� Gerar Cartão CNPJ TXT", key="generate_txt_button"):
+    if st.button("📄 Gerar Cartão CNPJ TXT", key="generate_txt_button"):
         if st.session_state.api_raw_response:
             txt_content = generate_cnpj_text_report_content(st.session_state.api_raw_response)
 
@@ -645,7 +651,147 @@ def generate_cnpj_text_report_content(api_raw_response):
     else:
         qsa_txt.append("N/A")
 
-    # Inscrições Estaduais
+    # Inscrições Estaduais (Adaptação para o formato solicitado)
+    registrations_txt = []
+    if registrations:
+        for reg in registrations:
+            ie_number = reg.get('number', 'N/A')
+            uf = reg.get('state', 'N/A')
+            enabled_status = "SIM" if reg.get('enabled', False) else "NÃO"
+            status_text = reg.get('status', {}).get('text', 'N/A')
+            type_text = reg.get('type', {}).get('text', 'N/A')
+
+            # Emojis para Habilitada
+            enabled_emoji = "🟢" if enabled_status == "SIM" else "��"
+
+            # Emojis para Status (generalizando para incluir termos negativos)
+            status_emoji = ""
+            if "Sem restrição" in status_text or "ATIVA" in status_text.upper():
+                status_emoji = "🟢"
+            elif "Bloqueado" in status_text or "Cancelado" in status_text or "Suspenso" in status_text or "Baixada" in status_text or "Inapta" in status_text:
+                status_emoji = "🔴"
+            
+            # Construindo a string formatada para a IE no novo padrão
+            reg_info = (
+                f"UF: {uf} | IE: {ie_number} | Habilitada: {enabled_status} {enabled_emoji}\n"
+                f"Status: {status_text} {status_emoji}\n"
+                f"TIPO: {type_text}"
+            )
+            formatted_registrations_list.append(reg_info)
+        extracted["Inscricoes Estaduais"] = "\n\n".join(formatted_registrations_list)
+    else:
+        extracted["Inscricoes Estaduais"] = "N/A"
+
+    return extracted, None
+
+# --- Montando o conteúdo TXT ---
+def generate_cnpj_text_report_content(api_raw_response):
+    """
+    Gera o conteúdo de texto para o relatório do CNPJ,
+    usando a estrutura da sua função `generate_cnpj_text_report` do PySide6.
+    Retorna uma string.
+    """
+    data = api_raw_response
+    company = data.get('company', {})
+    address = data.get('address', {})
+    main_activity = data.get('mainActivity', {})
+    side_activities = data.get('sideActivities', [])
+    phones = data.get('phones', [])
+    emails = data.get('emails', [])
+    members = company.get('members', [])
+    registrations = data.get('registrations', [])
+    simples = company.get('simples', {})
+    simei = company.get('simei', {})
+    status_info = data.get('status', {})
+    status_special = data.get('specialStatus', {})
+
+    # Formatação de campos para TXT (reutilizando sua lógica)
+    cnpj_formatted = format_cnpj(data.get('taxId', 'N/A'))
+    razao_social = company.get('name', 'N/A')
+    nome_fantasia = data.get('alias', 'N/A')
+    data_abertura = datetime.datetime.strptime(data.get('founded', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('founded') else 'N/A'
+    situacao_cadastral = status_info.get('text', 'N/A')
+    data_situacao_cadastral = datetime.datetime.strptime(data.get('statusDate', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('statusDate') else 'N/A'
+    motivo_situacao_cadastral = status_info.get('reason', 'N/A')
+    situacao_especial = status_special.get('text', 'N/A')
+    data_situacao_especial = datetime.datetime.strptime(status_special.get('date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if status_special.get('date') else 'N/A'
+    natureza_juridica = company.get('nature', {}).get('text', 'N/A')
+    porte_empresa = company.get('size', {}).get('text', 'N/A')
+
+    equity_value = company.get('equity')
+    if equity_value is not None:
+        try:
+            equity_str = f"{float(equity_value):.2f}"
+            parts = equity_str.split('.')
+            integer_part = parts[0]
+            decimal_part = parts[1]
+            formatted_integer_part = re.sub(r'(\d)(?=(\d{3})+(?!\d))', r'\1.', integer_part)
+            formatted_capital_social = f"R$ {formatted_integer_part},{decimal_part}"
+        except (ValueError, TypeError):
+            formatted_capital_social = 'N/A'
+    else:
+        formatted_capital_social = 'N/A'
+
+    optante_simples = "SIM" if simples.get('optant', False) else "NÃO"
+    data_opcao_simples = simples.get('since', 'N/A')
+    optante_simei = "SIM" if simei.get('optant', False) else "NÃO"
+    data_opcao_simei = simei.get('since', 'N/A')
+
+    # Endereço
+    logradouro = address.get('street', 'N/A')
+    numero = address.get('number', 'N/A')
+    complemento = address.get('details', 'N/A')
+    bairro = address.get('district', 'N/A')
+    cep = address.get('zip', 'N/A')
+    municipio = address.get('city', 'N/A')
+    uf_endereco = address.get('state', 'N/A')
+    pais_endereco = address.get('country', {}).get('name', 'N/A')
+
+    # CNAE Principal
+    cnae_principal_id = main_activity.get('id', 'N/A')
+    cnae_principal_text = main_activity.get('text', 'N/A')
+    cnae_principal_formatted = f"{cnae_principal_id} - {cnae_principal_text}"
+
+    # CNAEs Secundários
+    cnaes_secundarios_txt = []
+    if side_activities:
+        for activity in side_activities:
+            cnaes_secundarios_txt.append(f"{activity.get('id', 'N/A')} - {activity.get('text', 'N/A')}")
+    else:
+        cnaes_secundarios_txt.append("N/A")
+
+    # Telefones
+    phones_txt = []
+    if phones:
+        for phone in phones:
+            phones_txt.append(f"({phone.get('area', 'N/A')}) {phone.get('number', 'N/A')} ({phone.get('type', 'N/A')})")
+    else:
+        phones_txt.append("N/A")
+
+    # Emails
+    emails_txt = []
+    if emails:
+        for email in emails:
+            emails_txt.append(email.get('address', 'N/A'))
+    else:
+        emails_txt.append("N/A")
+
+    # Quadro de Sócios e Administradores (QSA)
+    qsa_txt = []
+    if members:
+        for member in members:
+            person = member.get('person', {})
+            role = member.get('role', {})
+            qsa_txt.append(
+                f"Nome: {person.get('name', 'N/A')}\n"
+                f"CPF/CNPJ: {person.get('taxId', 'N/A')}\n"
+                f"Função: {role.get('text', 'N/A')}\n"
+                f"Desde: {member.get('since', 'N/A')}"
+            )
+    else:
+        qsa_txt.append("N/A")
+
+    # Inscrições Estaduais (para o TXT, use o formato original ou adapte se preferir)
     registrations_txt = []
     if registrations:
         for reg in registrations:
@@ -736,7 +882,7 @@ def generate_cnpj_text_report_content(api_raw_response):
         text_content += f"|   - {email}\n"
     text_content += separator_line + "\n"
 
-    # INSCRIÇÕES ESTADUAIS
+    # INSCRIÇÕES ESTADUAIS (TXT)
     text_content += separator_line
     text_content += f"| INSCRIÇÕES ESTADUAIS\n"
     text_content += separator_line
