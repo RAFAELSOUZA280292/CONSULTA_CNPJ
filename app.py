@@ -242,13 +242,14 @@ def extract_data_for_display(response):
 st.set_page_config(page_title="Consulta CNPJ", layout="centered")
 
 # --- Função auxiliar para linhas alternadas ---
-def styled_row(label, value, row_index, is_multiline=False):
+def styled_row(label, value, row_index, is_multiline_content=False):
     color1 = "#1A1A1A" # Quase preto
     color2 = "#2C2C2C" # Cinza escuro um pouco mais claro
     bg_color = color1 if row_index % 2 == 0 else color2
     
     # Adapta a altura mínima para campos de linha única ou multi-linha
-    min_height_style = "min-height: 25px;" if not is_multiline else ""
+    # Se is_multiline_content for True, a altura será auto, caso contrário, min-height
+    min_height_style = "min-height: 25px;" if not is_multiline_content else ""
 
     html_content = f"""
     <div style="background-color: {bg_color}; padding: 8px 12px; margin-bottom: 2px; border-radius: 5px; {min_height_style}">
@@ -336,26 +337,29 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                 except ValueError:
                     pass
             
-            # --- NOVA LÓGICA DE EMOJIS ---
+            # --- Lógica de Emojis Aprimorada ---
             if key == "Situação Cadastral":
-                if value == "ATIVA":
+                if value.strip().upper() == "ATIVA": # Normaliza para comparação
                     value = "🟢 Ativa"
             elif key == "Optante Simples Nacional":
-                if value == "✔ Sim":
+                if "Sim" in value: # Verifica se "Sim" está na string
                     value = "🟢 Sim"
-                elif value == "X Não":
+                elif "Não" in value: # Verifica se "Não" está na string
                     value = "🔴 Não"
             elif key == "Optante SIMEI":
-                if value == "✔ Sim":
+                if "Sim" in value:
                     value = "🟢 Sim"
-                elif value == "X Não":
-                    value = "🔴 Não"
-            # --- FIM DA NOVA LÓGICA DE EMOJIS ---
+                elif "Não" in value:
+                    value = "�� Não"
+            # --- FIM DA LÓGICA DE EMOJIS APRIMORADA ---
             
             st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
             row_idx += 1
 
     with tab_address:
+        # Aumentar o row_idx para continuar a contagem de cores se as abas fossem sequenciais,
+        # mas como são separadas, cada aba começa com 0.
+        row_idx = 0 
         fields = [
             ("Logradouro", "Logradouro"),
             ("Número", "Número"),
@@ -366,38 +370,92 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             ("CEP", "CEP"),
             ("País", "País"),
         ]
-        row_idx = 0
         for label, key in fields:
             value = st.session_state.last_consulted_data.get(key, 'N/A')
             st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
             row_idx += 1
 
     with tab_activities:
-        fields = [
-            ("CNAE Principal", "CNAE Principal"),
-            ("CNAEs Secundários", "CNAEs Secundários"),
-            ("Telefones", "Telefones"),
-            ("Emails", "Emails"),
-        ]
-        row_idx = 0
-        for label, key in fields:
-            value = st.session_state.last_consulted_data.get(key, 'N/A')
-            # Marcar como multilinha se o valor contiver quebras de linha
-            is_multiline = "\n" in value
-            st.markdown(styled_row(label, value, row_idx, is_multiline=is_multiline), unsafe_allow_html=True)
+        row_idx = 0 # Inicia o contador de linhas para esta aba
+
+        # CNAE Principal (linha única)
+        label, key = "CNAE Principal", "CNAE Principal"
+        value = st.session_state.last_consulted_data.get(key, 'N/A')
+        st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
+        row_idx += 1
+
+        # CNAEs Secundários (lista de itens com zebra striping e separador)
+        st.markdown("<h5 style='margin-bottom: 0;'>CNAEs Secundários:</h5>", unsafe_allow_html=True) # Título da seção
+        cnaes_sec = st.session_state.last_consulted_data.get("CNAEs Secundários", "N/A")
+        if cnaes_sec != "N/A":
+            cnae_items = cnaes_sec.split('\n')
+            for i, item in enumerate(cnae_items):
+                st.markdown(styled_row("Item", item, row_idx), unsafe_allow_html=True) # "Item" como label genérico
+                row_idx += 1
+                if i < len(cnae_items) - 1: # Adiciona separador entre itens, mas não após o último
+                    st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True) # Separador visual leve
+        else:
+            st.markdown(styled_row("Item", "N/A", row_idx), unsafe_allow_html=True)
             row_idx += 1
 
+        # Telefones (lista de itens com zebra striping e separador)
+        st.markdown("<h5 style='margin-top: 15px; margin-bottom: 0;'>Telefones:</h5>", unsafe_allow_html=True) # Título da seção
+        phones = st.session_state.last_consulted_data.get("Telefones", "N/A")
+        if phones != "N/A":
+            phone_items = phones.split('\n')
+            for i, item in enumerate(phone_items):
+                st.markdown(styled_row("Contato", item, row_idx), unsafe_allow_html=True) # "Contato" como label genérico
+                row_idx += 1
+                if i < len(phone_items) - 1:
+                    st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+        else:
+            st.markdown(styled_row("Contato", "N/A", row_idx), unsafe_allow_html=True)
+            row_idx += 1
+
+        # Emails (lista de itens com zebra striping e separador)
+        st.markdown("<h5 style='margin-top: 15px; margin-bottom: 0;'>Emails:</h5>", unsafe_allow_html=True) # Título da seção
+        emails = st.session_state.last_consulted_data.get("Emails", "N/A")
+        if emails != "N/A":
+            email_items = emails.split('\n')
+            for i, item in enumerate(email_items):
+                st.markdown(styled_row("Email", item, row_idx), unsafe_allow_html=True) # "Email" como label genérico
+                row_idx += 1
+                if i < len(email_items) - 1:
+                    st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+        else:
+            st.markdown(styled_row("Email", "N/A", row_idx), unsafe_allow_html=True)
+            row_idx += 1
+
+
     with tab_partners:
-        value = st.session_state.last_consulted_data.get('Sócios', 'N/A')
-        # Marcar como multilinha se o valor contiver quebras de linha
-        is_multiline = "\n" in value
-        st.markdown(styled_row("Sócios", value, 0, is_multiline=is_multiline), unsafe_allow_html=True)
+        row_idx = 0 # Inicia o contador de linhas para esta aba
+        st.markdown("<h5 style='margin-bottom: 0;'>Sócios:</h5>", unsafe_allow_html=True) # Título da seção
+        socios = st.session_state.last_consulted_data.get('Sócios', 'N/A')
+        if socios != "N/A":
+            socio_blocks = socios.split('\n\n') # Divide em blocos de sócios
+            for i, block in enumerate(socio_blocks):
+                st.markdown(styled_row(f"Sócio {i+1}", block, row_idx, is_multiline_content=True), unsafe_allow_html=True) # Passa como multi-line content
+                row_idx += 1
+                if i < len(socio_blocks) - 1:
+                    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Separador maior entre sócios
+        else:
+            st.markdown(styled_row("Sócio", "N/A", row_idx), unsafe_allow_html=True)
+            row_idx += 1
 
     with tab_registrations:
-        value = st.session_state.last_consulted_data.get("Inscricoes Estaduais", "N/A")
-        # Marcar como multilinha se o valor contiver quebras de linha
-        is_multiline = "\n" in value
-        st.markdown(styled_row("Inscrições Estaduais", value, 0, is_multiline=is_multiline), unsafe_allow_html=True)
+        row_idx = 0 # Inicia o contador de linhas para esta aba
+        st.markdown("<h5 style='margin-bottom: 0;'>Inscrições Estaduais:</h5>", unsafe_allow_html=True) # Título da seção
+        inscricoes_estaduais = st.session_state.last_consulted_data.get("Inscricoes Estaduais", "N/A")
+        if inscricoes_estaduais != "N/A":
+            ie_blocks = inscricoes_estaduais.split('\n\n') # Divide em blocos de IEs
+            for i, block in enumerate(ie_blocks):
+                st.markdown(styled_row(f"IE {i+1}", block, row_idx, is_multiline_content=True), unsafe_allow_html=True) # Passa como multi-line content
+                row_idx += 1
+                if i < len(ie_blocks) - 1:
+                    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # Separador maior entre IEs
+        else:
+            st.markdown(styled_row("Inscrição Estadual", "N/A", row_idx), unsafe_allow_html=True)
+            row_idx += 1
 
 
     st.markdown("---")
@@ -406,17 +464,14 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
     # Botão Salvar em Excel
     if st.button("💾 Salvar em Excel", key="save_excel_button"):
         if st.session_state.last_consulted_data:
-            # Para exportar todos os campos, incluindo aqueles com múltiplas linhas (CNAEs Sec., Sócios, IEs),
-            # você precisará tratá-los para que apareçam em uma única célula do Excel.
-            # Uma forma é joinar com "\n" ou ", "
-            
             # Cria uma cópia para modificação antes de criar o DataFrame
             data_for_excel = st.session_state.last_consulted_data.copy()
 
             # Trata campos que podem ter múltiplas linhas no display para uma única linha no Excel
             for key_multi_line in ["CNAEs Secundários", "Telefones", "Emails", "Sócios", "Inscricoes Estaduais"]:
                 if key_multi_line in data_for_excel and isinstance(data_for_excel[key_multi_line], str):
-                    data_for_excel[key_multi_line] = data_for_excel[key_multi_line].replace("\n", " | ").replace("\n\n", " || ") # Substitui quebras de linha por |
+                    # Troca "\n\n" por um separador duplo para blocos (Sócios, IEs) e "\n" por um separador simples
+                    data_for_excel[key_multi_line] = data_for_excel[key_multi_line].replace("\n\n", " || ").replace("\n", " | ") 
 
             # Reformatar Data Situação Especial para o Excel, se necessário
             if "Data Situação Especial" in data_for_excel and data_for_excel["Data Situação Especial"] != 'N/A':
@@ -468,7 +523,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             st.warning("Nenhum dado para salvar em Excel.")
 
     # Botão Gerar TXT CNPJ
-    if st.button("📄 Gerar Cartão CNPJ TXT", key="generate_txt_button"):
+    if st.button("�� Gerar Cartão CNPJ TXT", key="generate_txt_button"):
         if st.session_state.api_raw_response:
             txt_content = generate_cnpj_text_report_content(st.session_state.api_raw_response)
 
