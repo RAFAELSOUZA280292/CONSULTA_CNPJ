@@ -5,6 +5,7 @@ import time
 import re
 import datetime
 import os
+import io # Importar io para manipulação de bytes para download
 
 # --- Funções de Utilitário ---
 def format_cnpj(cnpj_text):
@@ -240,6 +241,22 @@ def extract_data_for_display(response):
 # --- Interface Streamlit ---
 st.set_page_config(page_title="Consulta CNPJ", layout="centered")
 
+# --- Função auxiliar para linhas alternadas ---
+def styled_row(label, value, row_index, is_multiline=False):
+    color1 = "#1A1A1A" # Quase preto
+    color2 = "#2C2C2C" # Cinza escuro um pouco mais claro
+    bg_color = color1 if row_index % 2 == 0 else color2
+    
+    # Adapta a altura mínima para campos de linha única ou multi-linha
+    min_height_style = "min-height: 25px;" if not is_multiline else ""
+
+    html_content = f"""
+    <div style="background-color: {bg_color}; padding: 8px 12px; margin-bottom: 2px; border-radius: 5px; {min_height_style}">
+        <span style="font-weight: bold;">{label}:</span> {value}
+    </div>
+    """
+    return html_content
+
 st.title("🔎 Consulta de Dados Cadastrais CNPJ")
 st.markdown("Desenvolvido por Zen.Ai TAX (adaptado para Streamlit)")
 
@@ -287,62 +304,85 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
     ])
 
     with tab_general:
-        st.write(f"**CNPJ:** {st.session_state.last_consulted_data.get('CNPJ', 'N/A')}")
-        st.write(f"**Razão Social:** {st.session_state.last_consulted_data.get('Razão Social', 'N/A')}")
-        st.write(f"**Nome Fantasia:** {st.session_state.last_consulted_data.get('Nome Fantasia', 'N/A')}")
-        st.write(f"**Data de Abertura:** {st.session_state.last_consulted_data.get('Data de Abertura', 'N/A')}")
-        st.write(f"**Situação Cadastral:** {st.session_state.last_consulted_data.get('Situação Cadastral', 'N/A')}")
+        fields = [
+            ("CNPJ", "CNPJ"),
+            ("Razão Social", "Razão Social"),
+            ("Nome Fantasia", "Nome Fantasia"),
+            ("Data de Abertura", "Data de Abertura"),
+            ("Situação Cadastral", "Situação Cadastral"),
+            ("Data da Situação Cadastral", "Data Situação Cadastral"),
+            ("Motivo Situação Cadastral", "Motivo Situação Cadastral"),
+            ("Situação Especial", "Situação Especial"),
+            ("Data Situação Especial", "Data Situação Especial"),
+            ("Natureza Jurídica", "Natureza Jurídica"),
+            ("Porte da Empresa", "Porte da Empresa"),
+            ("Capital Social", "Capital Social"),
+            ("Optante Simples Nacional", "Optante Simples Nacional"),
+            ("Início Simples Nacional", "Início Simples Nacional"),
+            ("Optante SIMEI", "Optante SIMEI"),
+            ("Início SIMEI", "Início SIMEI"),
+            ("Última Atualização Dados", "Última Atualização Dados"),
+        ]
         
-        # --- CAMPOS ADICIONADOS / CORRIGIDOS NA EXIBIÇÃO ---
-        st.write(f"**Data da Situação Cadastral:** {st.session_state.last_consulted_data.get('Data Situação Cadastral', 'N/A')}")
-        st.write(f"**Motivo Situação Cadastral:** {st.session_state.last_consulted_data.get('Motivo Situação Cadastral', 'N/A')}")
-        st.write(f"**Situação Especial:** {st.session_state.last_consulted_data.get('Situação Especial', 'N/A')}")
-        # A data da Situação Especial não está formatada na extração, vamos formatar aqui se existir e for uma string
-        data_especial_str = st.session_state.last_consulted_data.get('Data Situação Especial', 'N/A')
-        if data_especial_str != 'N/A':
-            try:
-                dt_object_esp = datetime.datetime.strptime(data_especial_str, '%Y-%m-%d')
-                data_especial_str = dt_object_esp.strftime("%d/%m/%Y")
-            except ValueError:
-                pass # Mantém como está se não for uma data válida
-        st.write(f"**Data Situação Especial:** {data_especial_str}")
-        
-        st.write(f"**Natureza Jurídica:** {st.session_state.last_consulted_data.get('Natureza Jurídica', 'N/A')}")
-        st.write(f"**Porte da Empresa:** {st.session_state.last_consulted_data.get('Porte da Empresa', 'N/A')}")
-        st.write(f"**Capital Social:** {st.session_state.last_consulted_data.get('Capital Social', 'N/A')}")
-        st.write(f"**Optante Simples Nacional:** {st.session_state.last_consulted_data.get('Optante Simples Nacional', 'N/A')}")
-        st.write(f"**Optante SIMEI:** {st.session_state.last_consulted_data.get('Optante SIMEI', 'N/A')}")
-        st.write(f"**Início Simples Nacional:** {st.session_state.last_consulted_data.get('Início Simples Nacional', 'N/A')}")
-        st.write(f"**Início SIMEI:** {st.session_state.last_consulted_data.get('Início SIMEI', 'N/A')}")
-        st.write(f"**Última Atualização Dados:** {st.session_state.last_consulted_data.get('Última Atualização Dados', 'N/A')}")
+        row_idx = 0
+        for label, key in fields:
+            value = st.session_state.last_consulted_data.get(key, 'N/A')
+            
+            # Special handling for "Data Situação Especial" as it might not be pre-formatted
+            if key == "Data Situação Especial" and value != 'N/A' and isinstance(value, str) and len(value) >= 10: # Check if it's a date string
+                try:
+                    dt_object_esp = datetime.datetime.strptime(value[:10], '%Y-%m-%d') # Take first 10 chars for date
+                    value = dt_object_esp.strftime("%d/%m/%Y")
+                except ValueError:
+                    pass # Keep as is if not a valid date
+            
+            st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
+            row_idx += 1
 
     with tab_address:
-        st.write(f"**Logradouro:** {st.session_state.last_consulted_data.get('Logradouro', 'N/A')}")
-        st.write(f"**Número:** {st.session_state.last_consulted_data.get('Número', 'N/A')}")
-        st.write(f"**Complemento:** {st.session_state.last_consulted_data.get('Complemento', 'N/A')}")
-        st.write(f"**Bairro:** {st.session_state.last_consulted_data.get('Bairro', 'N/A')}")
-        st.write(f"**Município:** {st.session_state.last_consulted_data.get('Município', 'N/A')}")
-        st.write(f"**UF:** {st.session_state.last_consulted_data.get('UF', 'N/A')}")
-        st.write(f"**CEP:** {st.session_state.last_consulted_data.get('CEP', 'N/A')}")
-        st.write(f"**País:** {st.session_state.last_consulted_data.get('País', 'N/A')}")
+        fields = [
+            ("Logradouro", "Logradouro"),
+            ("Número", "Número"),
+            ("Complemento", "Complemento"),
+            ("Bairro", "Bairro"),
+            ("Município", "Município"),
+            ("UF", "UF"),
+            ("CEP", "CEP"),
+            ("País", "País"),
+        ]
+        row_idx = 0
+        for label, key in fields:
+            value = st.session_state.last_consulted_data.get(key, 'N/A')
+            st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
+            row_idx += 1
 
     with tab_activities:
-        st.write(f"**CNAE Principal:** {st.session_state.last_consulted_data.get('CNAE Principal', 'N/A')}")
-        st.write(f"**CNAEs Secundários:**")
-        st.markdown(st.session_state.last_consulted_data.get("CNAEs Secundários", "N/A"))
-        st.write(f"**Telefones:**")
-        st.markdown(st.session_state.last_consulted_data.get("Telefones", "N/A"))
-        st.write(f"**Emails:**")
-        st.markdown(st.session_state.last_consulted_data.get("Emails", "N/A"))
-
+        fields = [
+            ("CNAE Principal", "CNAE Principal"),
+            ("CNAEs Secundários", "CNAEs Secundários"),
+            ("Telefones", "Telefones"),
+            ("Emails", "Emails"),
+        ]
+        row_idx = 0
+        for label, key in fields:
+            value = st.session_state.last_consulted_data.get(key, 'N/A')
+            # Marcar como multilinha se o valor contiver quebras de linha
+            is_multiline = "\n" in value
+            st.markdown(styled_row(label, value, row_idx, is_multiline=is_multiline), unsafe_allow_html=True)
+            row_idx += 1
 
     with tab_partners:
-        st.write(f"**Sócios:**")
-        st.markdown(st.session_state.last_consulted_data.get('Sócios', 'N/A'))
+        value = st.session_state.last_consulted_data.get('Sócios', 'N/A')
+        # Marcar como multilinha se o valor contiver quebras de linha
+        is_multiline = "\n" in value
+        st.markdown(styled_row("Sócios", value, 0, is_multiline=is_multiline), unsafe_allow_html=True)
 
     with tab_registrations:
-        st.write(f"**Inscrições Estaduais:**")
-        st.markdown(st.session_state.last_consulted_data.get("Inscricoes Estaduais", "N/A"))
+        value = st.session_state.last_consulted_data.get("Inscricoes Estaduais", "N/A")
+        # Marcar como multilinha se o valor contiver quebras de linha
+        is_multiline = "\n" in value
+        st.markdown(styled_row("Inscrições Estaduais", value, 0, is_multiline=is_multiline), unsafe_allow_html=True)
+
 
     st.markdown("---")
     st.subheader("Opções de Exportação")
@@ -360,12 +400,19 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             # Trata campos que podem ter múltiplas linhas no display para uma única linha no Excel
             for key_multi_line in ["CNAEs Secundários", "Telefones", "Emails", "Sócios", "Inscricoes Estaduais"]:
                 if key_multi_line in data_for_excel and isinstance(data_for_excel[key_multi_line], str):
-                    data_for_excel[key_multi_line] = data_for_excel[key_multi_line].replace("\n", " | ") # Substitui quebras de linha por |
+                    data_for_excel[key_multi_line] = data_for_excel[key_multi_line].replace("\n", " | ").replace("\n\n", " || ") # Substitui quebras de linha por |
+
+            # Reformatar Data Situação Especial para o Excel, se necessário
+            if "Data Situação Especial" in data_for_excel and data_for_excel["Data Situação Especial"] != 'N/A':
+                try:
+                    dt_obj_esp = datetime.datetime.strptime(data_for_excel["Data Situação Especial"], '%Y-%m-%d')
+                    data_for_excel["Data Situação Especial"] = dt_obj_esp.strftime("%d/%m/%Y")
+                except ValueError:
+                    pass
 
             df_to_export = pd.DataFrame([data_for_excel])
             
-            # Reorganiza as colunas na ordem desejada
-            # As chaves em data_for_excel serão as mesmas do COLUMN_ORDER que você já tinha no PySide6
+            # Reorganiza as colunas na ordem desejada (sua COLUMN_ORDER do PySide6)
             column_order = [
                 # Dados Gerais
                 "CNPJ", "Razão Social", "Nome Fantasia", "Data de Abertura",
@@ -405,17 +452,8 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             st.warning("Nenhum dado para salvar em Excel.")
 
     # Botão Gerar TXT CNPJ
-    if st.button("📄 Gerar Cartão CNPJ TXT", key="generate_txt_button"):
+    if st.button("�� Gerar Cartão CNPJ TXT", key="generate_txt_button"):
         if st.session_state.api_raw_response:
-            # Aqui você chamará a sua função `generate_cnpj_text_report`
-            # adaptada para retornar a string TXT em vez de salvar no disco.
-            # Mova a lógica de `generate_cnpj_text_report` para uma nova função
-            # que retorna o conteúdo do TXT como uma string.
-            
-            # Reutilizando a lógica do PySide6 para gerar o conteúdo TXT
-            # Você precisaria mover a função generate_cnpj_text_report_content para fora da classe CnpjApp
-            # ou criar uma função helper aqui que replique a lógica.
-            
             txt_content = generate_cnpj_text_report_content(st.session_state.api_raw_response)
 
             st.download_button(
@@ -429,7 +467,6 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             st.warning("Nenhum dado para gerar Cartão CNPJ TXT.")
 
 # --- HELPERS PARA O DOWNLOAD TXT E EXCEL ---
-import io # Adicionar no início do arquivo junto com os outros imports
 
 def generate_cnpj_text_report_content(api_raw_response):
     """
@@ -460,7 +497,7 @@ def generate_cnpj_text_report_content(api_raw_response):
     data_situacao_cadastral = datetime.datetime.strptime(data.get('statusDate', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('statusDate') else 'N/A'
     motivo_situacao_cadastral = status_info.get('reason', 'N/A')
     situacao_especial = status_special.get('text', 'N/A')
-    data_situacao_especial = datetime.datetime.strptime(status_special.get('date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if status_special.get('date') else 'N/A'
+    data_situacao_especial = datetime.datetime.strptime(status_special.get('date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if status_special.get('date') else 'N/A' if status_special.get('date') else 'N/A'
     natureza_juridica = company.get('nature', {}).get('text', 'N/A')
     porte_empresa = company.get('size', {}).get('text', 'N/A')
 
@@ -471,7 +508,8 @@ def generate_cnpj_text_report_content(api_raw_response):
             parts = equity_str.split('.')
             integer_part = parts[0]
             decimal_part = parts[1]
-            formatted_capital_social = f"R$ {re.sub(r'(\d)(?=(\d{3})+(?!\d))', r'\1.', integer_part)},{decimal_part}"
+            formatted_integer_part = re.sub(r'(\d)(?=(\d{3})+(?!\d))', r'\1.', integer_part)
+            formatted_capital_social = f"R$ {formatted_integer_part},{decimal_part}"
         except (ValueError, TypeError):
             formatted_capital_social = 'N/A'
     else:
