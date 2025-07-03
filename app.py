@@ -350,7 +350,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                 if "Sim" in value:
                     value = "🟢 Sim"
                 elif "Não" in value:
-                    value = "�� Não"
+                    value = "🔴 Não"
             # --- FIM DA LÓGICA DE EMOJIS APRIMORADA ---
             
             st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
