@@ -328,13 +328,29 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
         for label, key in fields:
             value = st.session_state.last_consulted_data.get(key, 'N/A')
             
-            # Special handling for "Data Situação Especial" as it might not be pre-formatted
-            if key == "Data Situação Especial" and value != 'N/A' and isinstance(value, str) and len(value) >= 10: # Check if it's a date string
+            # Special handling for "Data Situação Especial"
+            if key == "Data Situação Especial" and value != 'N/A' and isinstance(value, str) and len(value) >= 10:
                 try:
-                    dt_object_esp = datetime.datetime.strptime(value[:10], '%Y-%m-%d') # Take first 10 chars for date
+                    dt_object_esp = datetime.datetime.strptime(value[:10], '%Y-%m-%d')
                     value = dt_object_esp.strftime("%d/%m/%Y")
                 except ValueError:
-                    pass # Keep as is if not a valid date
+                    pass
+            
+            # --- NOVA LÓGICA DE EMOJIS ---
+            if key == "Situação Cadastral":
+                if value == "ATIVA":
+                    value = "🟢 Ativa"
+            elif key == "Optante Simples Nacional":
+                if value == "✔ Sim":
+                    value = "🟢 Sim"
+                elif value == "X Não":
+                    value = "🔴 Não"
+            elif key == "Optante SIMEI":
+                if value == "✔ Sim":
+                    value = "🟢 Sim"
+                elif value == "X Não":
+                    value = "🔴 Não"
+            # --- FIM DA NOVA LÓGICA DE EMOJIS ---
             
             st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
             row_idx += 1
@@ -452,7 +468,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             st.warning("Nenhum dado para salvar em Excel.")
 
     # Botão Gerar TXT CNPJ
-    if st.button("�� Gerar Cartão CNPJ TXT", key="generate_txt_button"):
+    if st.button("📄 Gerar Cartão CNPJ TXT", key="generate_txt_button"):
         if st.session_state.api_raw_response:
             txt_content = generate_cnpj_text_report_content(st.session_state.api_raw_response)
 
@@ -497,7 +513,7 @@ def generate_cnpj_text_report_content(api_raw_response):
     data_situacao_cadastral = datetime.datetime.strptime(data.get('statusDate', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('statusDate') else 'N/A'
     motivo_situacao_cadastral = status_info.get('reason', 'N/A')
     situacao_especial = status_special.get('text', 'N/A')
-    data_situacao_especial = datetime.datetime.strptime(status_special.get('date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if status_special.get('date') else 'N/A' if status_special.get('date') else 'N/A'
+    data_situacao_especial = datetime.datetime.strptime(status_special.get('date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if status_special.get('date') else 'N/A'
     natureza_juridica = company.get('nature', {}).get('text', 'N/A')
     porte_empresa = company.get('size', {}).get('text', 'N/A')
 
