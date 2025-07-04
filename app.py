@@ -8,6 +8,100 @@ import os
 import io
 from fpdf import FPDF # Importação da biblioteca FPDF
 
+# --- Configuração da Página ---
+st.set_page_config(page_title="Consulta CNPJ", layout="centered")
+
+# --- Adicionar o Logo ---
+# Caminho para o logo dentro do seu repositório
+# Certifique-se de que o arquivo 'logo.png' está em uma pasta 'images' na raiz do seu projeto
+logo_path = "images/logo.png"
+
+# Exibir o logo no topo da página
+# Ajuste 'width' conforme necessário para o tamanho desejado
+st.image(logo_path, width=400) # Exemplo: 400 pixels de largura
+
+# Custom CSS for light theme and cyan accents
+st.markdown("""
+<style>
+/* Overall app background and default text color for light theme */
+.stApp {
+    background-color: #F8F9FA; /* A very light grey, almost white */
+    color: #333333; /* Dark grey for default text */
+}
+
+/* Headings (h1, h2, h3, h5) */
+h1, h2, h3, h5 {
+    color: #00ACC1; /* Cyan blue for all relevant headings */
+}
+
+/* Text input fields background */
+/* These class names are heuristic and might change with Streamlit updates.
+   It's better to inspect elements in browser dev tools for exact classes. */
+.st-emotion-cache-z5fcl4, /* Primary input container */
+.st-emotion-cache-1oe5f0g, /* Text input actual box */
+.st-emotion-cache-13vmq3j, /* Another common input class */
+.st-emotion-cache-1g0b27k, /* Yet another common input class */
+.st-emotion-cache-f0f7f3 /* Textarea class, if applicable */
+{
+    background-color: white; /* White background for input fields */
+    color: #333333; /* Dark text color in inputs */
+    border-radius: 5px;
+    border: 1px solid #ced4da; /* Light grey border */
+}
+
+/* Info box (for "CNPJ formatado") */
+div[data-testid="stAlert"] {
+    background-color: #e0f7fa; /* Light cyan background */
+    color: #004d40; /* Dark green-blue text for good contrast */
+    border-left: 5px solid #00ACC1; /* Cyan border for accent */
+    border-radius: 5px;
+}
+
+/* Button styling */
+.stButton>button {
+    background-color: #00ACC1; /* Cyan background */
+    color: white; /* White text for contrast */
+    border-radius: 5px;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow for depth */
+    transition: background-color 0.3s ease; /* Smooth transition on hover */
+}
+.stButton>button:hover {
+    background-color: #008C9E; /* Slightly darker cyan on hover */
+}
+
+/* Tabs styling */
+div[data-testid="stTabs"] { /* Container for all tabs */
+    background-color: #F0F2F6; /* Light grey background for the tab bar */
+    border-radius: 5px;
+    border-bottom: 1px solid #ced4da; /* Light border below tabs */
+}
+
+button[data-testid^="stTab"] { /* Individual tab buttons */
+    color: #555555; /* Darker grey for inactive tab text */
+    background-color: #F0F2F6; /* Match tab background to light grey */
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 5px 5px 0 0; /* Rounded top corners */
+    margin-right: 2px; /* Small space between tabs */
+    transition: background-color 0.3s ease, color 0.3s ease, border-bottom 0.3s ease;
+}
+
+button[data-testid^="stTab"][aria-selected="true"] {
+    color: #00ACC1; /* Cyan for selected tab text */
+    background-color: white; /* White background for selected tab */
+    border-bottom: 3px solid #00ACC1; /* Cyan underline for selected tab */
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+st.title("🔎 Consulta de Dados Cadastrais CNPJ")
+st.markdown("Desenvolvido por Zen.Ai TAX (adaptado para Streamlit)")
+
 # --- Funções de Utilitário ---
 
 # Nova função auxiliar para tratamento de valores None vindos da API
@@ -662,89 +756,6 @@ def generate_cnpj_pdf_report(extracted_data):
 
 
 # --- Interface Streamlit ---
-st.set_page_config(page_title="Consulta CNPJ", layout="centered")
-
-# Custom CSS for light theme and cyan accents
-st.markdown("""
-<style>
-/* Overall app background and default text color for light theme */
-.stApp {
-    background-color: #F8F9FA; /* A very light grey, almost white */
-    color: #333333; /* Dark grey for default text */
-}
-
-/* Headings (h1, h2, h3, h5) */
-h1, h2, h3, h5 {
-    color: #00ACC1; /* Cyan blue for all relevant headings */
-}
-
-/* Text input fields background */
-/* These class names are heuristic and might change with Streamlit updates.
-   It's better to inspect elements in browser dev tools for exact classes. */
-.st-emotion-cache-z5fcl4, /* Primary input container */
-.st-emotion-cache-1oe5f0g, /* Text input actual box */
-.st-emotion-cache-13vmq3j, /* Another common input class */
-.st-emotion-cache-1g0b27k, /* Yet another common input class */
-.st-emotion-cache-f0f7f3 /* Textarea class, if applicable */
-{
-    background-color: white; /* White background for input fields */
-    color: #333333; /* Dark text color in inputs */
-    border-radius: 5px;
-    border: 1px solid #ced4da; /* Light grey border */
-}
-
-/* Info box (for "CNPJ formatado") */
-div[data-testid="stAlert"] {
-    background-color: #e0f7fa; /* Light cyan background */
-    color: #004d40; /* Dark green-blue text for good contrast */
-    border-left: 5px solid #00ACC1; /* Cyan border for accent */
-    border-radius: 5px;
-}
-
-/* Button styling */
-.stButton>button {
-    background-color: #00ACC1; /* Cyan background */
-    color: white; /* White text for contrast */
-    border-radius: 5px;
-    border: none;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow for depth */
-    transition: background-color 0.3s ease; /* Smooth transition on hover */
-}
-.stButton>button:hover {
-    background-color: #008C9E; /* Slightly darker cyan on hover */
-}
-
-/* Tabs styling */
-div[data-testid="stTabs"] { /* Container for all tabs */
-    background-color: #F0F2F6; /* Light grey background for the tab bar */
-    border-radius: 5px;
-    border-bottom: 1px solid #ced4da; /* Light border below tabs */
-}
-
-button[data-testid^="stTab"] { /* Individual tab buttons */
-    color: #555555; /* Darker grey for inactive tab text */
-    background-color: #F0F2F6; /* Match tab background to light grey */
-    font-weight: bold;
-    padding: 10px 15px;
-    border-radius: 5px 5px 0 0; /* Rounded top corners */
-    margin-right: 2px; /* Small space between tabs */
-    transition: background-color 0.3s ease, color 0.3s ease, border-bottom 0.3s ease;
-}
-
-button[data-testid^="stTab"][aria-selected="true"] {
-    color: #00ACC1; /* Cyan for selected tab text */
-    background-color: white; /* White background for selected tab */
-    border-bottom: 3px solid #00ACC1; /* Cyan underline for selected tab */
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-st.title("🔎 Consulta de Dados Cadastrais CNPJ")
-st.markdown("Desenvolvido por Zen.Ai TAX (adaptado para Streamlit)")
 
 cnpj_input = st.text_input("Digite o CNPJ para consultar:", max_chars=18, help="Apenas números, ou no formato XX.XXX.XXX/XXXX-XX", key="cnpj_input_field")
 
@@ -987,7 +998,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                 "Inscricoes Estaduais"
             ]
             # Filtra apenas as colunas que realmente existem no DataFrame
-            existing_columns = [col for col in column_order if col in df_to_export.columns]
+            existing_columns = [col for col col in column_order if col in df_to_export.columns]
             df_to_export = df_to_export[existing_columns]
 
 
