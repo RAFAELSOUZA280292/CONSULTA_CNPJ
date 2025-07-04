@@ -9,6 +9,16 @@ import io
 from fpdf import FPDF # Importação da biblioteca FPDF
 
 # --- Funções de Utilitário ---
+
+# Nova função auxiliar para tratamento de valores None vindos da API
+def _get_safe_value(data_dict, key, default_value='N/A'):
+    """ 
+    Safely retrieves a value from a dictionary.
+    Returns default_value if key is missing or value is None.
+    """
+    value = data_dict.get(key)
+    return value if value is not None else default_value
+
 def format_cnpj(cnpj_text):
     """Formata o CNPJ para o padrão XX.XXX.XXX/XXXX-XX."""
     clean_cnpj = re.sub(r'\D', '', cnpj_text)
@@ -62,15 +72,12 @@ def consultar_cnpj_api(cnpj):
 def extract_data_for_display(response):
     """
     Extrai e formata os dados da resposta da API para exibição na GUI.
-    Esta função DEVE ser a versão COMPLETA que você tinha no seu app PySide6
-    para garantir que todos os campos necessários estejam presentes no dicionário 'extracted'.
     """
     if "error" in response:
         return None, response["error"]
 
     data = response
 
-    # Comece com o dicionário extracted vazio
     extracted = {}
 
     # --- Dados da Empresa ---
@@ -82,12 +89,12 @@ def extract_data_for_display(response):
     status_info = data.get('status', {})
     status_special = data.get('specialStatus', {})
 
-    extracted["CNPJ"] = data.get('taxId', 'N/A')
-    extracted["Razão Social"] = company.get('name', 'N/A')
-    extracted["Nome Fantasia"] = data.get('alias', 'N/A')
+    extracted["CNPJ"] = _get_safe_value(data, 'taxId')
+    extracted["Razão Social"] = _get_safe_value(company, 'name')
+    extracted["Nome Fantasia"] = _get_safe_value(data, 'alias')
 
     # Data de Abertura
-    founded_str = data.get('founded')
+    founded_str = _get_safe_value(data, 'founded', None) # Pega None se não existir para o try-except
     if founded_str:
         try:
             dt_object = datetime.datetime.strptime(founded_str, '%Y-%m-%d')
@@ -97,10 +104,10 @@ def extract_data_for_display(response):
     else:
         extracted["Data de Abertura"] = 'N/A'
 
-    extracted["Situação Cadastral"] = status_info.get('text', 'N/A')
+    extracted["Situação Cadastral"] = _get_safe_value(status_info, 'text')
 
     # Data Situação Cadastral
-    status_date_str = data.get('statusDate')
+    status_date_str = _get_safe_value(data, 'statusDate', None)
     if status_date_str:
         try:
             dt_object = datetime.datetime.strptime(status_date_str, '%Y-%m-%d')
@@ -110,16 +117,16 @@ def extract_data_for_display(response):
     else:
         extracted["Data Situação Cadastral"] = 'N/A'
 
-    extracted["Motivo Situação Cadastral"] = status_info.get('reason', 'N/A')
-    extracted["Situação Especial"] = status_special.get('text', 'N/A')
-    extracted["Data Situação Especial"] = status_special.get('date', 'N/A') # Data ainda não formatada
+    extracted["Motivo Situação Cadastral"] = _get_safe_value(status_info, 'reason')
+    extracted["Situação Especial"] = _get_safe_value(status_special, 'text')
+    extracted["Data Situação Especial"] = _get_safe_value(status_special, 'date') # Ainda pode ser YYYY-MM-DD
 
-    extracted["Natureza Jurídica"] = nature.get('text', 'N/A')
-    extracted["Porte da Empresa"] = size.get('text', 'N/A')
+    extracted["Natureza Jurídica"] = _get_safe_value(nature, 'text')
+    extracted["Porte da Empresa"] = _get_safe_value(size, 'text')
 
     # Capital Social com formatação comercial
-    equity_value = company.get('equity')
-    if equity_value is not None:
+    equity_value = _get_safe_value(company, 'equity', None) # Pega None para checagem
+    if equity_value is not None and equity_value != 'N/A': # Verifica também se não é a string 'N/A'
         try:
             equity_str = f"{float(equity_value):.2f}"
             parts = equity_str.split('.')
@@ -133,17 +140,17 @@ def extract_data_for_display(response):
         extracted["Capital Social"] = 'N/A'
 
     # Optante Simples Nacional com ✔/X
-    simples_optant = simples.get('optant', False)
+    simples_optant = _get_safe_value(simples, 'optant', False)
     extracted["Optante Simples Nacional"] = f"{'✔ Sim' if simples_optant else 'X Não'}"
-    extracted["Início Simples Nacional"] = simples.get('since', 'N/A')
+    extracted["Início Simples Nacional"] = _get_safe_value(simples, 'since')
 
     # Optante SIMEI com ✔/X
-    simei_optant = simei.get('optant', False)
+    simei_optant = _get_safe_value(simei, 'optant', False)
     extracted["Optante SIMEI"] = f"{'✔ Sim' if simei_optant else 'X Não'}"
-    extracted["Início SIMEI"] = simei.get('since', 'N/A')
+    extracted["Início SIMEI"] = _get_safe_value(simei, 'since')
 
     # Última Atualização Dados com formatação de data/hora
-    updated_str = data.get('updated')
+    updated_str = _get_safe_value(data, 'updated', None)
     if updated_str:
         try:
             dt_object = datetime.datetime.fromisoformat(updated_str.replace('Z', '+00:00'))
@@ -156,14 +163,14 @@ def extract_data_for_display(response):
     # Endereço
     address_data = data.get('address')
     if address_data and isinstance(address_data, dict):
-        extracted["Logradouro"] = address_data.get('street', 'N/A')
-        extracted["Número"] = address_data.get('number', 'N/A')
-        extracted["Complemento"] = address_data.get('details', 'N/A')
-        extracted["Bairro"] = address_data.get('district', 'N/A')
-        extracted["Município"] = address_data.get('city', 'N/A')
-        extracted["UF"] = address_data.get('state', 'N/A')
-        extracted["CEP"] = address_data.get('zip', 'N/A')
-        extracted["País"] = address_data.get('country', {}).get('name', 'N/A')
+        extracted["Logradouro"] = _get_safe_value(address_data, 'street')
+        extracted["Número"] = _get_safe_value(address_data, 'number')
+        extracted["Complemento"] = _get_safe_value(address_data, 'details')
+        extracted["Bairro"] = _get_safe_value(address_data, 'district')
+        extracted["Município"] = _get_safe_value(address_data, 'city')
+        extracted["UF"] = _get_safe_value(address_data, 'state')
+        extracted["CEP"] = _get_safe_value(address_data, 'zip')
+        extracted["País"] = _get_safe_value(address_data.get('country', {}), 'name')
     else:
         extracted["Logradouro"] = 'N/A'
         extracted["Número"] = 'N/A'
@@ -176,25 +183,25 @@ def extract_data_for_display(response):
 
     # Atividades Econômicas
     main_activity = data.get('mainActivity', {})
-    extracted["CNAE Principal"] = f"{main_activity.get('id', 'N/A')} - {main_activity.get('text', 'N/A')}"
+    extracted["CNAE Principal"] = f"{_get_safe_value(main_activity, 'id')} - {_get_safe_value(main_activity, 'text')}"
 
     side_activities = data.get('sideActivities', [])
     cnaes_secundarios_list = []
     for activity in side_activities:
-        cnaes_secundarios_list.append(f"{activity.get('id', 'N/A')} - {activity.get('text', 'N/A')}")
+        cnaes_secundarios_list.append(f"{_get_safe_value(activity, 'id')} - {_get_safe_value(activity, 'text')}")
     extracted["CNAEs Secundários"] = "\n".join(cnaes_secundarios_list) if cnaes_secundarios_list else "N/A"
 
     # Contatos
     phones = data.get('phones', [])
     phone_list = []
     for phone in phones:
-        phone_list.append(f"({phone.get('area', 'N/A')}) {phone.get('number', 'N/A')} ({phone.get('type', 'N/A')})")
+        phone_list.append(f"({_get_safe_value(phone, 'area')}) {_get_safe_value(phone, 'number')} ({_get_safe_value(phone, 'type')})")
     extracted["Telefones"] = "\n".join(phone_list) if phone_list else "N/A"
 
     emails = data.get('emails', [])
     email_list = []
     for email in emails:
-        email_list.append(email.get('address', 'N/A'))
+        email_list.append(_get_safe_value(email, 'address'))
     extracted["Emails"] = "\n".join(email_list) if email_list else "N/A"
 
     # Sócios
@@ -205,10 +212,10 @@ def extract_data_for_display(response):
             person = member.get('person', {})
             role = member.get('role', {})
             member_details = []
-            member_details.append(f"Nome: {person.get('name', 'N/A')}")
-            member_details.append(f"CPF: {person.get('taxId', 'N/A')}")
-            member_details.append(f"Idade: {person.get('age', 'N/A')}")
-            member_details.append(f"Função: {role.get('text', 'N/A')}")
+            member_details.append(f"Nome: {_get_safe_value(person, 'name')}")
+            member_details.append(f"CPF: {_get_safe_value(person, 'taxId')}")
+            member_details.append(f"Idade: {_get_safe_value(person, 'age')}")
+            member_details.append(f"Função: {_get_safe_value(role, 'text')}")
             members_info_list.append("\n".join(member_details))
         extracted["Sócios"] = "\n\n".join(members_info_list)
     else:
@@ -219,11 +226,11 @@ def extract_data_for_display(response):
     formatted_registrations_list = []
     if registrations:
         for reg in registrations:
-            ie_number = reg.get('number', 'N/A')
-            uf = reg.get('state', 'N/A')
-            enabled_text = "SIM" if reg.get('enabled', False) else "NÃO"
-            status_text = reg.get('status', {}).get('text', 'N/A')
-            type_text = reg.get('type', {}).get('text', 'N/A')
+            ie_number = _get_safe_value(reg, 'number')
+            uf = _get_safe_value(reg, 'state')
+            enabled_text = "SIM" if _get_safe_value(reg, 'enabled', False) else "NÃO"
+            status_text = _get_safe_value(reg.get('status', {}), 'text')
+            type_text = _get_safe_value(reg.get('type', {}), 'text')
 
             # Emojis para Habilitada
             enabled_emoji = "🟢" if enabled_text == "SIM" else "🔴"
@@ -295,21 +302,21 @@ def generate_cnpj_text_report_content(api_raw_response):
     status_info = data.get('status', {})
     status_special = data.get('specialStatus', {})
 
-    # Formatação de campos
-    cnpj_formatted = format_cnpj(data.get('taxId', 'N/A'))
-    razao_social = company.get('name', 'N/A')
-    nome_fantasia = data.get('alias', 'N/A')
-    data_abertura = datetime.datetime.strptime(data.get('founded', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%m%Y') if data.get('founded') else 'N/A'
-    situacao_cadastral = status_info.get('text', 'N/A')
-    data_situacao_cadastral = datetime.datetime.strptime(data.get('statusDate', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('statusDate') else 'N/A'
-    motivo_situacao_cadastral = status_info.get('reason', 'N/A')
-    situacao_especial = status_special.get('text', 'N/A')
-    data_situacao_especial = datetime.datetime.strptime(status_special.get('date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if status_special.get('date') else 'N/A'
-    natureza_juridica = company.get('nature', {}).get('text', 'N/A')
-    porte_empresa = company.get('size', {}).get('text', 'N/A')
+    # Formatação de campos usando _get_safe_value
+    cnpj_formatted = format_cnpj(_get_safe_value(data, 'taxId'))
+    razao_social = _get_safe_value(company, 'name')
+    nome_fantasia = _get_safe_value(data, 'alias')
+    data_abertura = datetime.datetime.strptime(_get_safe_value(data, 'founded', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if _get_safe_value(data, 'founded') else 'N/A'
+    situacao_cadastral = _get_safe_value(status_info, 'text')
+    data_situacao_cadastral = datetime.datetime.strptime(_get_safe_value(data, 'statusDate', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if _get_safe_value(data, 'statusDate') else 'N/A'
+    motivo_situacao_cadastral = _get_safe_value(status_info, 'reason')
+    situacao_especial = _get_safe_value(status_special, 'text')
+    data_situacao_especial = datetime.datetime.strptime(_get_safe_value(status_special, 'date', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if _get_safe_value(status_special, 'date') else 'N/A'
+    natureza_juridica = _get_safe_value(company.get('nature', {}), 'text')
+    porte_empresa = _get_safe_value(company.get('size', {}), 'text')
 
-    equity_value = company.get('equity')
-    if equity_value is not None:
+    equity_value = _get_safe_value(company, 'equity', None)
+    if equity_value is not None and equity_value != 'N/A':
         try:
             equity_str = f"{float(equity_value):.2f}"
             parts = equity_str.split('.')
@@ -322,23 +329,23 @@ def generate_cnpj_text_report_content(api_raw_response):
     else:
         formatted_capital_social = 'N/A'
 
-    optante_simples = "SIM" if simples.get('optant', False) else "NÃO"
-    data_opcao_simples = simples.get('since', 'N/A')
-    optante_simei = "SIM" if simei.get('optant', False) else "NÃO"
-    data_opcao_simei = simei.get('since', 'N/A')
+    optante_simples = "SIM" if _get_safe_value(simples, 'optant', False) else "NÃO"
+    data_opcao_simples = _get_safe_value(simples, 'since')
+    optante_simei = "SIM" if _get_safe_value(simei, 'optant', False) else "NÃO"
+    data_opcao_simei = _get_safe_value(simei, 'since')
 
     # Endereço
-    logradouro = address.get('street', 'N/A')
-    numero = address.get('number', 'N/A')
-    complemento = address.get('details', 'N/A')
-    bairro = address.get('district', 'N/A')
-    cep = address.get('zip', 'N/A')
-    municipio = address.get('city', 'N/A')
-    uf_endereco = address.get('state', 'N/A')
-    pais_endereco = address.get('country', {}).get('name', 'N/A')
+    logradouro = _get_safe_value(address, 'street')
+    numero = _get_safe_value(address, 'number')
+    complemento = _get_safe_value(address, 'details')
+    bairro = _get_safe_value(address, 'district')
+    cep = _get_safe_value(address, 'zip')
+    municipio = _get_safe_value(address, 'city')
+    uf_endereco = _get_safe_value(address, 'state')
+    pais_endereco = _get_safe_value(address.get('country', {}), 'name')
 
-    cnae_principal_id = main_activity.get('id', 'N/A')
-    cnae_principal_text = main_activity.get('text', 'N/A')
+    cnae_principal_id = _get_safe_value(main_activity, 'id')
+    cnae_principal_text = _get_safe_value(main_activity, 'text')
     cnae_principal_formatted = f"{cnae_principal_id} - {cnae_principal_text}"
 
     # --- Start building text content ---
@@ -363,7 +370,7 @@ def generate_cnpj_text_report_content(api_raw_response):
     text_lines.append("CNAES SECUNDÁRIOS:")
     if side_activities:
         for activity in side_activities:
-            text_lines.append(f"  - {activity.get('id', 'N/A')} - {activity.get('text', 'N/A')}")
+            text_lines.append(f"  - {_get_safe_value(activity, 'id')} - {_get_safe_value(activity, 'text')}")
     else:
         text_lines.append("  N/A")
     text_lines.append(f"\nNatureza Jurídica: {natureza_juridica}") # Adicionado newline antes
@@ -407,13 +414,13 @@ def generate_cnpj_text_report_content(api_raw_response):
     text_lines.append("Telefones:")
     if phones:
         for phone in phones:
-            text_lines.append(f"  - ({phone.get('area', 'N/A')}) {phone.get('number', 'N/A')} ({phone.get('type', 'N/A')})")
+            text_lines.append(f"  - ({_get_safe_value(phone, 'area')}) {_get_safe_value(phone, 'number')} ({_get_safe_value(phone, 'type')})")
     else:
         text_lines.append("  N/A")
     text_lines.append("Emails:")
     if emails:
         for email in emails:
-            text_lines.append(f"  - {email.get('address', 'N/A')}")
+            text_lines.append(f"  - {_get_safe_value(email, 'address')}")
     else:
         text_lines.append("  N/A")
     text_lines.append("\n") # Extra newline for spacing
@@ -424,11 +431,11 @@ def generate_cnpj_text_report_content(api_raw_response):
     text_lines.append(SECTION_LINE)
     if registrations:
         for i, reg in enumerate(registrations):
-            ie_number = reg.get('number', 'N/A')
-            uf_ie = reg.get('state', 'N/A')
-            enabled_ie = "SIM" if reg.get('enabled', False) else "NÃO"
-            status_ie = reg.get('status', {}).get('text', 'N/A')
-            type_ie = reg.get('type', {}).get('text', 'N/A')
+            ie_number = _get_safe_value(reg, 'number')
+            uf_ie = _get_safe_value(reg, 'state')
+            enabled_ie = "SIM" if _get_safe_value(reg, 'enabled', False) else "NÃO"
+            status_ie = _get_safe_value(reg.get('status', {}), 'text')
+            type_ie = _get_safe_value(reg.get('type', {}), 'text')
             
             if i > 0:
                 text_lines.append(SUB_SECTION_LINE) # Small separator between IEs
@@ -455,10 +462,10 @@ def generate_cnpj_text_report_content(api_raw_response):
                 text_lines.append(SUB_SECTION_LINE) # Small separator between members
             
             text_lines.append(f"Sócio {i+1}:")
-            text_lines.append(f"  Nome: {person.get('name', 'N/A')}")
-            text_lines.append(f"  CPF/CNPJ: {person.get('taxId', 'N/A')}")
-            text_lines.append(f"  Função: {role.get('text', 'N/A')}")
-            text_lines.append(f"  Desde: {member.get('since', 'N/A')}")
+            text_lines.append(f"  Nome: {_get_safe_value(person, 'name')}")
+            text_lines.append(f"  CPF/CNPJ: {_get_safe_value(person, 'taxId')}")
+            text_lines.append(f"  Função: {_get_safe_value(role, 'text')}")
+            text_lines.append(f"  Desde: {_get_safe_value(member, 'since')}")
         text_lines.append("\n") # Extra newline after last member
     else:
         text_lines.append("N/A\n")
@@ -499,12 +506,16 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 9) # Fonte ligeiramente maior para o rótulo do campo
         self.cell(label_width, 6, f"{label}:", 0, 0, 'L') # Célula mais alta para o campo
         self.set_font('Arial', '', 9) # Fonte ligeiramente maior para o valor do campo
+        
+        # Converte o valor para string explicitamente para evitar 'NoneType'
+        value_str = str(value) 
+
         if is_multiline:
             # MultiCell para quebrar linhas automaticamente em campos longos
-            self.multi_cell(0, 6, value) # Célula mais alta para campos multi-linha
+            self.multi_cell(0, 6, value_str) # Célula mais alta para campos multi-linha
         else:
             # Campo de linha única
-            self.cell(0, 6, value, 0, 1, 'L')
+            self.cell(0, 6, value_str, 0, 1, 'L')
         self.ln(1) # Pequeno espaço entre campos
 
     def add_list_items(self, title, items_list):
@@ -515,7 +526,7 @@ class PDF(FPDF):
         if items_list:
             for item in items_list:
                 # Usa multi_cell para cada item da lista, pois também podem ser longos
-                self.multi_cell(0, 5, f"  - {item}") # Célula mais alta para itens de lista
+                self.multi_cell(0, 5, f"  - {str(item)}") # Célula mais alta para itens de lista, com str()
         else:
             self.cell(0, 5, "  N/A", 0, 1, 'L')
         self.ln(3) # Mais espaço após a lista
@@ -536,24 +547,24 @@ def generate_cnpj_pdf_report(extracted_data):
 
     # --- Seção de Dados Cadastrais ---
     pdf.add_section_title("DADOS CADASTRAIS")
-    pdf.add_field("CNPJ", extracted_data.get("CNPJ", "N/A"))
-    pdf.add_field("Razão Social", extracted_data.get("Razão Social", "N/A"))
-    pdf.add_field("Nome Fantasia", extracted_data.get("Nome Fantasia", "N/A"))
-    pdf.add_field("Data de Abertura", extracted_data.get("Data de Abertura", "N/A"))
-    pdf.add_field("Natureza Jurídica", extracted_data.get("Natureza Jurídica", "N/A"))
-    pdf.add_field("Porte da Empresa", extracted_data.get("Porte da Empresa", "N/A"))
-    pdf.add_field("Capital Social", extracted_data.get("Capital Social", "N/A"))
-    pdf.add_field("Última Atualização Dados", extracted_data.get("Última Atualização Dados", "N/A"))
+    pdf.add_field("CNPJ", extracted_data.get("CNPJ"))
+    pdf.add_field("Razão Social", extracted_data.get("Razão Social"))
+    pdf.add_field("Nome Fantasia", extracted_data.get("Nome Fantasia"))
+    pdf.add_field("Data de Abertura", extracted_data.get("Data de Abertura"))
+    pdf.add_field("Natureza Jurídica", extracted_data.get("Natureza Jurídica"))
+    pdf.add_field("Porte da Empresa", extracted_data.get("Porte da Empresa"))
+    pdf.add_field("Capital Social", extracted_data.get("Capital Social"))
+    pdf.add_field("Última Atualização Dados", extracted_data.get("Última Atualização Dados"))
     
     # --- Seção de Situação Cadastral ---
     pdf.add_section_title("SITUAÇÃO CADASTRAL")
-    pdf.add_field("Situação", extracted_data.get("Situação Cadastral", "N/A"))
-    pdf.add_field("Data da Situação", extracted_data.get("Data Situação Cadastral", "N/A"))
-    pdf.add_field("Motivo da Situação", extracted_data.get("Motivo Situação Cadastral", "N/A"))
-    pdf.add_field("Situação Especial", extracted_data.get("Situação Especial", "N/A"))
+    pdf.add_field("Situação", extracted_data.get("Situação Cadastral"))
+    pdf.add_field("Data da Situação", extracted_data.get("Data Situação Cadastral"))
+    pdf.add_field("Motivo da Situação", extracted_data.get("Motivo Situação Cadastral"))
+    pdf.add_field("Situação Especial", extracted_data.get("Situação Especial"))
     
     # Formata a Data Situação Especial, que pode vir como YYYY-MM-DD
-    status_special_date = extracted_data.get("Data Situação Especial", "N/A")
+    status_special_date = extracted_data.get("Data Situação Especial")
     if status_special_date and status_special_date != 'N/A' and isinstance(status_special_date, str) and len(status_special_date) >= 10:
         try:
             dt_object_esp = datetime.datetime.strptime(status_special_date[:10], '%Y-%m-%d')
@@ -564,45 +575,46 @@ def generate_cnpj_pdf_report(extracted_data):
     
     # --- Seção de Regimes Tributários ---
     pdf.add_section_title("REGIMES TRIBUTÁRIOS")
-    pdf.add_field("Optante Simples Nacional", f"{extracted_data.get('Optante Simples Nacional', 'N/A')} (Desde {extracted_data.get('Início Simples Nacional', 'N/A')})", is_multiline=True)
-    pdf.add_field("Optante SIMEI", f"{extracted_data.get('Optante SIMEI', 'N/A')} (Desde {extracted_data.get('Início SIMEI', 'N/A')})", is_multiline=True)
+    pdf.add_field("Optante Simples Nacional", f"{extracted_data.get('Optante Simples Nacional')} (Desde {extracted_data.get('Início Simples Nacional')})", is_multiline=True)
+    pdf.add_field("Optante SIMEI", f"{extracted_data.get('Optante SIMEI')} (Desde {extracted_data.get('Início SIMEI')})", is_multiline=True)
 
     # --- Seção de Endereço ---
     pdf.add_section_title("ENDEREÇO")
-    pdf.add_field("Logradouro", extracted_data.get('Logradouro', 'N/A'))
-    pdf.add_field("Número", extracted_data.get('Número', 'N/A'))
-    pdf.add_field("Complemento", extracted_data.get('Complemento', 'N/A'))
-    pdf.add_field("Bairro", extracted_data.get('Bairro', 'N/A'))
-    pdf.add_field("Município", extracted_data.get('Município', 'N/A'))
-    pdf.add_field("UF", extracted_data.get('UF', 'N/A'))
-    pdf.add_field("CEP", extracted_data.get('CEP', 'N/A'))
-    pdf.add_field("País", extracted_data.get('País', 'N/A'))
+    pdf.add_field("Logradouro", extracted_data.get('Logradouro'))
+    pdf.add_field("Número", extracted_data.get('Número'))
+    pdf.add_field("Complemento", extracted_data.get('Complemento'))
+    pdf.add_field("Bairro", extracted_data.get('Bairro'))
+    pdf.add_field("Município", extracted_data.get('Município'))
+    pdf.add_field("UF", extracted_data.get('UF'))
+    pdf.add_field("CEP", extracted_data.get('CEP'))
+    pdf.add_field("País", extracted_data.get('País'))
 
     # --- Seção de Atividades ---
     pdf.add_section_title("ATIVIDADES ECONÔMICAS")
-    pdf.add_field("CNAE Principal", extracted_data.get("CNAE Principal", "N/A"), is_multiline=True)
+    pdf.add_field("CNAE Principal", extracted_data.get("CNAE Principal"), is_multiline=True)
     
     cnaes_secundarios_list = []
-    if extracted_data.get("CNAEs Secundários", "N/A") != "N/A":
+    # Verifica se a chave existe e não é 'N/A' antes de fazer split
+    if extracted_data.get("CNAEs Secundários") and extracted_data["CNAEs Secundários"] != "N/A":
         cnaes_secundarios_list = extracted_data["CNAEs Secundários"].split('\n')
     pdf.add_list_items("CNAEs Secundários", cnaes_secundarios_list)
 
     # --- Seção de Contatos ---
     pdf.add_section_title("CONTATOS")
     phones_list = []
-    if extracted_data.get("Telefones", "N/A") != "N/A":
+    if extracted_data.get("Telefones") and extracted_data["Telefones"] != "N/A":
         phones_list = extracted_data["Telefones"].split('\n')
     pdf.add_list_items("Telefones", phones_list)
 
     emails_list = []
-    if extracted_data.get("Emails", "N/A") != "N/A":
+    if extracted_data.get("Emails") and extracted_data["Emails"] != "N/A":
         emails_list = extracted_data["Emails"].split('\n')
     pdf.add_list_items("Emails", emails_list)
 
     # --- Seção de Sócios ---
     pdf.add_section_title("QUADRO DE SÓCIOS E ADMINISTRADORES (QSA)")
     socios_blocks_formatted = []
-    if extracted_data.get('Sócios', 'N/A') != 'N/A':
+    if extracted_data.get('Sócios') and extracted_data['Sócios'] != 'N/A':
         socio_items_raw = extracted_data['Sócios'].split('\n\n')
         for block in socio_items_raw:
             lines = [line.strip() for line in block.split('\n') if line.strip()]
@@ -624,7 +636,7 @@ def generate_cnpj_pdf_report(extracted_data):
     # --- Seção de Inscrições Estaduais ---
     pdf.add_section_title("INSCRIÇÕES ESTADUAIS")
     ie_blocks_formatted = []
-    if extracted_data.get("Inscricoes Estaduais", "N/A") != "N/A":
+    if extracted_data.get("Inscricoes Estaduais") and extracted_data["Inscricoes Estaduais"] != "N/A":
         ie_items_raw = extracted_data["Inscricoes Estaduais"].split('\n\n')
         for block in ie_items_raw:
             lines = [line.strip() for line in block.split('\n') if line.strip()]
