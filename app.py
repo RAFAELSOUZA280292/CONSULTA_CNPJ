@@ -249,25 +249,35 @@ def extract_data_for_display(response):
 
 # --- Função auxiliar para linhas alternadas ---
 def styled_row(label, value, row_index, is_multiline_content=False):
-    color1 = "#1A1A1A" # Quase preto
-    color2 = "#2C2C2C" # Cinza escuro um pouco mais claro
+    # Cores para o tema claro
+    color1 = "#F0F2F6"  # Cinza muito claro para linhas pares
+    color2 = "#E8ECF2"  # Cinza ligeiramente mais escuro para linhas ímpares
     bg_color = color1 if row_index % 2 == 0 else color2
     
-    # Adapta a altura mínima para campos de linha única ou multi-linha
+    # Cores do texto
+    label_text_color = "#00ACC1" # Azul Ciano para o rótulo em negrito
+    value_text_color = "#333333" # Cinza escuro para o valor
+
     min_height_style = "min-height: 25px;" if not is_multiline_content else ""
 
     html_content = f"""
     <div style="background-color: {bg_color}; padding: 8px 12px; margin-bottom: 2px; border-radius: 5px; {min_height_style}">
-        <span style="font-weight: bold;">{label}:</span> {value}
+        <span style="font-weight: bold; color: {label_text_color};">{label}:</span> <span style="color: {value_text_color};">{value}</span>
     </div>
     """
     return html_content
 
 # --- HELPERS PARA O DOWNLOAD TXT E EXCEL ---
+
+# Constantes para a formatação do TXT
+REPORT_WIDTH = 74 # Largura total do relatório em caracteres
+HEADER_LINE = "=" * REPORT_WIDTH
+SECTION_LINE = "-" * REPORT_WIDTH
+SUB_SECTION_LINE = "-" * (REPORT_WIDTH - 4) # Linha mais curta para dentro das seções
+
 def generate_cnpj_text_report_content(api_raw_response):
     """
-    Gera o conteúdo de texto para o relatório do CNPJ,
-    usando a estrutura da sua função `generate_cnpj_text_report` do PySide6.
+    Gera o conteúdo de texto para o relatório do CNPJ com um novo layout "dahora".
     Retorna uma string.
     """
     data = api_raw_response
@@ -284,7 +294,7 @@ def generate_cnpj_text_report_content(api_raw_response):
     status_info = data.get('status', {})
     status_special = data.get('specialStatus', {})
 
-    # Formatação de campos para TXT (reutilizando sua lógica)
+    # Formatação de campos
     cnpj_formatted = format_cnpj(data.get('taxId', 'N/A'))
     razao_social = company.get('name', 'N/A')
     nome_fantasia = data.get('alias', 'N/A')
@@ -326,179 +336,221 @@ def generate_cnpj_text_report_content(api_raw_response):
     uf_endereco = address.get('state', 'N/A')
     pais_endereco = address.get('country', {}).get('name', 'N/A')
 
-    # CNAE Principal
     cnae_principal_id = main_activity.get('id', 'N/A')
     cnae_principal_text = main_activity.get('text', 'N/A')
     cnae_principal_formatted = f"{cnae_principal_id} - {cnae_principal_text}"
 
-    # CNAEs Secundários
-    cnaes_secundarios_txt = []
+    # --- Start building text content ---
+    text_lines = []
+
+    # Header
+    text_lines.append(HEADER_LINE)
+    text_lines.append(f"{'CONSULTA CNPJ - Zen.Ai TAX'.center(REPORT_WIDTH)}")
+    text_lines.append(HEADER_LINE)
+    text_lines.append(f"EMITIDO EM: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+
+    # DADOS CADASTRAIS
+    text_lines.append(SECTION_LINE)
+    text_lines.append("DADOS CADASTRAIS".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
+    text_lines.append(f"CNPJ:           {cnpj_formatted}")
+    text_lines.append(f"Razão Social:   {razao_social}")
+    text_lines.append(f"Nome Fantasia:  {nome_fantasia}")
+    text_lines.append(f"Data Abertura:  {data_abertura}")
+    text_lines.append(f"CNAE Principal: {cnae_principal_formatted}\n")
+
+    text_lines.append("CNAES SECUNDÁRIOS:")
     if side_activities:
         for activity in side_activities:
-            cnaes_secundarios_txt.append(f"{activity.get('id', 'N/A')} - {activity.get('text', 'N/A')}")
+            text_lines.append(f"  - {activity.get('id', 'N/A')} - {activity.get('text', 'N/A')}")
     else:
-        cnaes_secundarios_txt.append("N/A")
+        text_lines.append("  N/A")
+    text_lines.append(f"\nNatureza Jurídica: {natureza_juridica}") # Adicionado newline antes
+    text_lines.append(f"Porte da Empresa:  {porte_empresa}")
+    text_lines.append(f"Capital Social:    {formatted_capital_social}\n")
 
-    # Telefones
-    phones_txt = []
+    # ENDEREÇO
+    text_lines.append(SECTION_LINE)
+    text_lines.append("ENDEREÇO".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
+    text_lines.append(f"Logradouro:     {logradouro}")
+    text_lines.append(f"Número:         {numero}")
+    text_lines.append(f"Complemento:    {complemento}")
+    text_lines.append(f"Bairro:         {bairro}")
+    text_lines.append(f"CEP:            {cep}")
+    text_lines.append(f"Município:      {municipio}")
+    text_lines.append(f"UF:             {uf_endereco}")
+    text_lines.append(f"País:           {pais_endereco}\n")
+
+    # SITUAÇÃO CADASTRAL
+    text_lines.append(SECTION_LINE)
+    text_lines.append("SITUAÇÃO CADASTRAL".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
+    text_lines.append(f"Situação:              {situacao_cadastral}")
+    text_lines.append(f"Data Situação:         {data_situacao_cadastral}")
+    text_lines.append(f"Motivo Situação:       {motivo_situacao_cadastral}")
+    text_lines.append(f"Situação Especial:     {situacao_especial}")
+    text_lines.append(f"Data Situação Especial:{data_situacao_especial}\n")
+
+    # REGIMES TRIBUTÁRIOS
+    text_lines.append(SECTION_LINE)
+    text_lines.append("REGIMES TRIBUTÁRIOS".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
+    text_lines.append(f"Simples Nacional:  {optante_simples} (Desde {data_opcao_simples})")
+    text_lines.append(f"SIMEI:             {optante_simei} (Desde {data_opcao_simei})\n")
+
+    # CONTATOS
+    text_lines.append(SECTION_LINE)
+    text_lines.append("CONTATOS".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
+    text_lines.append("Telefones:")
     if phones:
         for phone in phones:
-            phones_txt.append(f"({phone.get('area', 'N/A')}) {phone.get('number', 'N/A')} ({phone.get('type', 'N/A')})")
+            text_lines.append(f"  - ({phone.get('area', 'N/A')}) {phone.get('number', 'N/A')} ({phone.get('type', 'N/A')})")
     else:
-        phones_txt.append("N/A")
-
-    # Emails
-    emails_txt = []
+        text_lines.append("  N/A")
+    text_lines.append("Emails:")
     if emails:
         for email in emails:
-            emails_txt.append(email.get('address', 'N/A'))
+            text_lines.append(f"  - {email.get('address', 'N/A')}")
     else:
-        emails_txt.append("N/A")
+        text_lines.append("  N/A")
+    text_lines.append("\n") # Extra newline for spacing
 
-    # Quadro de Sócios e Administradores (QSA)
-    qsa_txt = []
-    if members:
-        for member in members:
-            person = member.get('person', {})
-            role = member.get('role', {})
-            qsa_txt.append(
-                f"Nome: {person.get('name', 'N/A')}\n"
-                f"CPF/CNPJ: {person.get('taxId', 'N/A')}\n"
-                f"Função: {role.get('text', 'N/A')}\n"
-                f"Desde: {member.get('since', 'N/A')}"
-            )
-    else:
-        qsa_txt.append("N/A")
-
-    # Inscrições Estaduais (para o TXT, use o formato original ou adapte se preferir)
-    registrations_txt = []
+    # INSCRIÇÕES ESTADUAIS
+    text_lines.append(SECTION_LINE)
+    text_lines.append("INSCRIÇÕES ESTADUAIS".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
     if registrations:
-        for reg in registrations:
+        for i, reg in enumerate(registrations):
             ie_number = reg.get('number', 'N/A')
             uf_ie = reg.get('state', 'N/A')
             enabled_ie = "SIM" if reg.get('enabled', False) else "NÃO"
             status_ie = reg.get('status', {}).get('text', 'N/A')
             type_ie = reg.get('type', {}).get('text', 'N/A')
-            registrations_txt.append(
-                f"Nº IE: {ie_number} (UF: {uf_ie})\n"
-                f"Habilitada: {enabled_ie}\n"
-                f"Status: {status_ie}\n"
-                f"Tipo: {type_ie}"
-            )
+            
+            if i > 0:
+                text_lines.append(SUB_SECTION_LINE) # Small separator between IEs
+            
+            text_lines.append(f"UF: {uf_ie}")
+            text_lines.append(f"  IE: {ie_number}")
+            text_lines.append(f"  Habilitada: {enabled_ie}")
+            text_lines.append(f"  Status: {status_ie}")
+            text_lines.append(f"  Tipo: {type_ie}")
+        text_lines.append("\n") # Extra newline after last IE
     else:
-        registrations_txt.append("N/A")
-
-    # --- Montando o conteúdo TXT ---
-    separator_line = "-" * 80 + "\n"
-    text_content = separator_line
-    text_content += f"|{' ' * 26}CARTÃO CNPJ - LAVORATAX{' ' * 27}|\n"
-    text_content += separator_line
-    text_content += f"| EMITIDO EM: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-    text_content += separator_line + "\n"
-
-    # DADOS CADASTRAIS
-    text_content += separator_line
-    text_content += f"| DADOS CADASTRAIS\n"
-    text_content += separator_line
-    text_content += f"| NÚMERO DE INSCRIÇÃO: {cnpj_formatted}\n"
-    text_content += f"| DATA DE ABERTURA: {data_abertura}\n"
-    text_content += f"| NOME EMPRESARIAL: {razao_social}\n"
-    text_content += f"| NOME FANTASIA: {nome_fantasia}\n"
-    text_content += f"| CÓDIGO E DESCRIÇÃO DA ATIVIDADE ECONÔMICA PRINCIPAL: {cnae_principal_formatted}\n"
-
-    text_content += f"| CÓDIGO(S) E DESCRIÇÃO(ÕES) DAS ATIVIDADES ECONÔMICAS SECUNDÁRIAS:\n"
-    for cnae in cnaes_secundarios_txt:
-        text_content += f"|   - {cnae}\n"
-    text_content += f"| CÓDIGO E DESCRIÇÃO DA NATUREZA JURÍDICA: {natureza_juridica}\n"
-    text_content += f"| PORTE DA EMPRESA: {porte_empresa}\n"
-    text_content += f"| CAPITAL SOCIAL: {formatted_capital_social}\n"
-    text_content += separator_line + "\n"
-
-    # ENDEREÇO
-    text_content += separator_line
-    text_content += f"| ENDEREÇO\n"
-    text_content += separator_line
-    text_content += f"| LOGRADOURO: {logradouro}\n"
-    text_content += f"| NÚMERO: {numero}\n"
-    text_content += f"| COMPLEMENTO: {complemento}\n"
-    text_content += f"| CEP: {cep}\n"
-    text_content += f"| BAIRRO/DISTRITO: {bairro}\n"
-    text_content += f"| MUNICÍPIO: {municipio}\n"
-    text_content += f"| UF: {uf_endereco}\n"
-    text_content += f"| PAÍS: {pais_endereco}\n"
-    text_content += separator_line + "\n"
-
-    # SITUAÇÃO CADASTRAL
-    text_content += separator_line
-    text_content += f"| SITUAÇÃO CADASTRAL\n"
-    text_content += separator_line
-    text_content += f"| SITUAÇÃO CADASTRAL: {situacao_cadastral}\n"
-    text_content += f"| DATA DA SITUAÇÃO CADASTRAL: {data_situacao_cadastral}\n"
-    text_content += f"| MOTIVO DE SITUAÇÃO CADASTRAL: {motivo_situacao_cadastral}\n"
-    text_content += f"| SITUAÇÃO ESPECIAL: {situacao_especial}\n"
-    text_content += f"| DATA DA SITUAÇÃO ESPECIAL: {data_situacao_especial}\n"
-    text_content += separator_line + "\n"
-
-    # REGIMES TRIBUTÁRIOS
-    text_content += separator_line
-    text_content += f"| REGIMES TRIBUTÁRIOS\n"
-    text_content += separator_line
-    text_content += f"| OPÇÃO PELO SIMPLES NACIONAL: {optante_simples}\n"
-    text_content += f"| DATA DE OPÇÃO PELO SIMPLES: {data_opcao_simples}\n"
-    text_content += f"| OPÇÃO PELO SIMEI: {optante_simei}\n"
-    text_content += f"| DATA DE OPÇÃO PELO SIMEI: {data_opcao_simei}\n"
-    text_content += separator_line + "\n"
-
-    # CONTATOS
-    text_content += separator_line
-    text_content += f"| CONTATOS\n"
-    text_content += separator_line
-    text_content += f"| TELEFONES:\n"
-    for phone in phones_txt:
-        text_content += f"|   - {phone}\n"
-    text_content += f"| EMAILS:\n"
-    for email in emails_txt:
-        text_content += f"|   - {email}\n"
-    text_content += separator_line + "\n"
-
-    # INSCRIÇÕES ESTADUAIS (TXT)
-    text_content += separator_line
-    text_content += f"| INSCRIÇÕES ESTADUAIS\n"
-    text_content += separator_line
-    if registrations_txt[0] == "N/A":
-        text_content += f"|   N/A\n"
-    else:
-        for i, reg_block in enumerate(registrations_txt):
-            for line in reg_block.split('\n'):
-                text_content += f"| {line}\n"
-            if i < len(registrations_txt) - 1:
-                text_content += f"|\n"
-    text_content += separator_line + "\n"
+        text_lines.append("N/A\n")
 
     # QUADRO DE SÓCIOS E ADMINISTRADORES (QSA)
-    text_content += separator_line
-    text_content += f"| QUADRO DE SÓCIOS E ADMINISTRADORES (QSA)\n"
-    text_content += separator_line
-    if qsa_txt[0] == "N/A":
-        text_content += f"|   N/A\n"
+    text_lines.append(SECTION_LINE)
+    text_lines.append("QUADRO DE SÓCIOS E ADMINISTRADORES (QSA)".center(REPORT_WIDTH))
+    text_lines.append(SECTION_LINE)
+    if members:
+        for i, member in enumerate(members):
+            person = member.get('person', {})
+            role = member.get('role', {})
+            
+            if i > 0:
+                text_lines.append(SUB_SECTION_LINE) # Small separator between members
+            
+            text_lines.append(f"Sócio {i+1}:")
+            text_lines.append(f"  Nome: {person.get('name', 'N/A')}")
+            text_lines.append(f"  CPF/CNPJ: {person.get('taxId', 'N/A')}")
+            text_lines.append(f"  Função: {role.get('text', 'N/A')}")
+            text_lines.append(f"  Desde: {member.get('since', 'N/A')}")
+        text_lines.append("\n") # Extra newline after last member
     else:
-        for i, member_block in enumerate(qsa_txt):
-            for line in member_block.split('\n'):
-                text_content += f"| {line}\n"
-            if i < len(qsa_txt) - 1:
-                text_content += f"|\n"
-    text_content += separator_line + "\n"
+        text_lines.append("N/A\n")
 
-    # FOOTER
-    text_content += separator_line
-    text_content += f"| A validade e autenticidade deste documento podem ser comprovadas no site da Receita Federal do Brasil.\n"
-    text_content += f"| Este é um documento gerado automaticamente pela ferramenta Zen.Ai TAX.\n"
-    text_content += separator_line
-    return text_content
+    # Footer
+    text_lines.append(HEADER_LINE)
+    text_lines.append(f"Validade e Autenticidade: Consulte o site da Receita Federal do Brasil.".center(REPORT_WIDTH))
+    text_lines.append(f"Gerado por Zen.Ai TAX.".center(REPORT_WIDTH))
+    text_lines.append(HEADER_LINE)
+
+    return "\n".join(text_lines)
 
 
 # --- Interface Streamlit ---
 st.set_page_config(page_title="Consulta CNPJ", layout="centered")
+
+# Custom CSS for light theme and cyan accents
+st.markdown("""
+<style>
+/* Overall app background and default text color for light theme */
+.stApp {
+    background-color: #F8F9FA; /* A very light grey, almost white */
+    color: #333333; /* Dark grey for default text */
+}
+
+/* Headings (h1, h2, h3, h5) */
+h1, h2, h3, h5 {
+    color: #00ACC1; /* Cyan blue for all relevant headings */
+}
+
+/* Text input fields background */
+/* These class names are heuristic and might change with Streamlit updates.
+   It's better to inspect elements in browser dev tools for exact classes. */
+.st-emotion-cache-z5fcl4, /* Primary input container */
+.st-emotion-cache-1oe5f0g, /* Text input actual box */
+.st-emotion-cache-13vmq3j, /* Another common input class */
+.st-emotion-cache-1g0b27k, /* Yet another common input class */
+.st-emotion-cache-f0f7f3 /* Textarea class, if applicable */
+{
+    background-color: white; /* White background for input fields */
+    color: #333333; /* Dark text color in inputs */
+    border-radius: 5px;
+    border: 1px solid #ced4da; /* Light grey border */
+}
+
+/* Info box (for "CNPJ formatado") */
+div[data-testid="stAlert"] {
+    background-color: #e0f7fa; /* Light cyan background */
+    color: #004d40; /* Dark green-blue text for good contrast */
+    border-left: 5px solid #00ACC1; /* Cyan border for accent */
+    border-radius: 5px;
+}
+
+/* Button styling */
+.stButton>button {
+    background-color: #00ACC1; /* Cyan background */
+    color: white; /* White text for contrast */
+    border-radius: 5px;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow for depth */
+    transition: background-color 0.3s ease; /* Smooth transition on hover */
+}
+.stButton>button:hover {
+    background-color: #008C9E; /* Slightly darker cyan on hover */
+}
+
+/* Tabs styling */
+div[data-testid="stTabs"] { /* Container for all tabs */
+    background-color: #F0F2F6; /* Light grey background for the tab bar */
+    border-radius: 5px;
+    border-bottom: 1px solid #ced4da; /* Light border below tabs */
+}
+
+button[data-testid^="stTab"] { /* Individual tab buttons */
+    color: #555555; /* Darker grey for inactive tab text */
+    background-color: #F0F2F6; /* Match tab background to light grey */
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 5px 5px 0 0; /* Rounded top corners */
+    margin-right: 2px; /* Small space between tabs */
+    transition: background-color 0.3s ease, color 0.3s ease, border-bottom 0.3s ease;
+}
+
+button[data-testid^="stTab"][aria-selected="true"] {
+    color: #00ACC1; /* Cyan for selected tab text */
+    background-color: white; /* White background for selected tab */
+    border-bottom: 3px solid #00ACC1; /* Cyan underline for selected tab */
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 st.title("🔎 Consulta de Dados Cadastrais CNPJ")
@@ -586,14 +638,14 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                     value = "🟢 Ativa"
             elif key == "Optante Simples Nacional":
                 if "Sim" in value: # Verifica se "Sim" está na string
-                    value = "�� Sim"
+                    value = "🟢 Sim"
                 elif "Não" in value: # Verifica se "Não" está na string
                     value = "🔴 Não"
             elif key == "Optante SIMEI":
                 if "Sim" in value:
                     value = "🟢 Sim"
                 elif "Não" in value:
-                    value = "�� Não"
+                    value = "🔴 Não"
             # --- FIM DA LÓGICA DE EMOJIS APRIMORADA ---
             
             st.markdown(styled_row(label, value, row_idx), unsafe_allow_html=True)
