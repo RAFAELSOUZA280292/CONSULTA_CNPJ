@@ -327,12 +327,12 @@ def extract_data_for_display(response):
             type_text = _get_safe_value(reg.get('type', {}), 'text')
 
             # Emojis para Habilitada
-            enabled_emoji = "🟢" if enabled_text == "SIM" else "🔴"
+            enabled_emoji = "��" if enabled_text == "SIM" else "🔴"
 
             # Emojis para Status (generalizando para incluir 'Bloqueado', 'Cancelado', 'Suspenso' como negativos)
             status_emoji = ""
             if "Sem restrição" in status_text or "ATIVA" in status_text.upper():
-                status_emoji = "🟢"
+                status_emoji = "��"
             elif "Bloqueado" in status_text or "Cancelado" in status_text or "Suspenso" in status_text or "Baixada" in status_text or "Inapta" in status_text:
                 status_emoji = "🔴"
             
@@ -998,7 +998,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                 "Inscricoes Estaduais"
             ]
             # Filtra apenas as colunas que realmente existem no DataFrame
-            existing_columns = [col for col col in column_order if col in df_to_export.columns]
+            existing_columns = [col for col in column_order if col in df_to_export.columns] # LINHA CORRIGIDA
             df_to_export = df_to_export[existing_columns]
 
 
