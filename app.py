@@ -6,6 +6,7 @@ import re
 import datetime
 import os
 import io
+from fpdf import FPDF # Importação da biblioteca FPDF
 
 # --- Funções de Utilitário ---
 def format_cnpj(cnpj_text):
@@ -247,7 +248,7 @@ def extract_data_for_display(response):
 
     return extracted, None
 
-# --- Função auxiliar para linhas alternadas ---
+# --- Função auxiliar para linhas alternadas (Streamlit UI) ---
 def styled_row(label, value, row_index, is_multiline_content=False):
     # Cores para o tema claro
     color1 = "#F0F2F6"  # Cinza muito claro para linhas pares
@@ -298,7 +299,7 @@ def generate_cnpj_text_report_content(api_raw_response):
     cnpj_formatted = format_cnpj(data.get('taxId', 'N/A'))
     razao_social = company.get('name', 'N/A')
     nome_fantasia = data.get('alias', 'N/A')
-    data_abertura = datetime.datetime.strptime(data.get('founded', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('founded') else 'N/A'
+    data_abertura = datetime.datetime.strptime(data.get('founded', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%m%Y') if data.get('founded') else 'N/A'
     situacao_cadastral = status_info.get('text', 'N/A')
     data_situacao_cadastral = datetime.datetime.strptime(data.get('statusDate', '1900-01-01'), '%Y-%m-%d').strftime('%d/%m/%Y') if data.get('statusDate') else 'N/A'
     motivo_situacao_cadastral = status_info.get('reason', 'N/A')
@@ -470,6 +471,183 @@ def generate_cnpj_text_report_content(api_raw_response):
 
     return "\n".join(text_lines)
 
+# --- FUNÇÕES PARA GERAÇÃO DE PDF ---
+class PDF(FPDF):
+    def header(self):
+        # Configurações do cabeçalho do PDF
+        self.set_font('Arial', 'B', 16) # Tamanho da fonte do título principal
+        self.cell(0, 10, 'RELATÓRIO COMPLETO DE CNPJ', 0, 1, 'C')
+        self.set_font('Arial', '', 10) # Tamanho da fonte da data de emissão
+        self.cell(0, 7, f"Emitido em: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", 0, 1, 'C')
+        self.ln(10) # Espaço maior após o cabeçalho
+
+    def footer(self):
+        # Configurações do rodapé do PDF
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+
+    def add_section_title(self, title):
+        # Título de seção com fundo cinza claro e fonte maior
+        self.set_font('Arial', 'B', 12)
+        self.set_fill_color(230, 230, 230) # Light gray background
+        self.cell(0, 8, title, 0, 1, 'L', 1) # Célula mais alta para o título
+        self.ln(4) # Mais espaço após o título da seção
+
+    def add_field(self, label, value, is_multiline=False, label_width=50): # Largura do rótulo ajustada
+        # Adiciona um campo (rótulo e valor) ao PDF
+        self.set_font('Arial', 'B', 9) # Fonte ligeiramente maior para o rótulo do campo
+        self.cell(label_width, 6, f"{label}:", 0, 0, 'L') # Célula mais alta para o campo
+        self.set_font('Arial', '', 9) # Fonte ligeiramente maior para o valor do campo
+        if is_multiline:
+            # MultiCell para quebrar linhas automaticamente em campos longos
+            self.multi_cell(0, 6, value) # Célula mais alta para campos multi-linha
+        else:
+            # Campo de linha única
+            self.cell(0, 6, value, 0, 1, 'L')
+        self.ln(1) # Pequeno espaço entre campos
+
+    def add_list_items(self, title, items_list):
+        # Adiciona uma lista de itens (CNAEs secundários, telefones, etc.)
+        self.set_font('Arial', 'B', 10) # Fonte ligeiramente maior para o título da lista
+        self.cell(0, 6, title + ":", 0, 1, 'L')
+        self.set_font('Arial', '', 9) # Fonte ligeiramente maior para os itens da lista
+        if items_list:
+            for item in items_list:
+                # Usa multi_cell para cada item da lista, pois também podem ser longos
+                self.multi_cell(0, 5, f"  - {item}") # Célula mais alta para itens de lista
+        else:
+            self.cell(0, 5, "  N/A", 0, 1, 'L')
+        self.ln(3) # Mais espaço após a lista
+
+def generate_cnpj_pdf_report(extracted_data):
+    pdf = PDF()
+    pdf.add_page()
+    # Habilita quebra de página automática com margem
+    pdf.set_auto_page_break(auto=True, margin=15) 
+    pdf.set_font('Arial', '', 9) # Fonte padrão para o conteúdo
+
+    if not extracted_data:
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, "Nenhum dado disponível para gerar o relatório.", 0, 1, 'C')
+        buffer = io.BytesIO()
+        pdf.output(buffer, 'S')
+        return buffer.getvalue()
+
+    # --- Seção de Dados Cadastrais ---
+    pdf.add_section_title("DADOS CADASTRAIS")
+    pdf.add_field("CNPJ", extracted_data.get("CNPJ", "N/A"))
+    pdf.add_field("Razão Social", extracted_data.get("Razão Social", "N/A"))
+    pdf.add_field("Nome Fantasia", extracted_data.get("Nome Fantasia", "N/A"))
+    pdf.add_field("Data de Abertura", extracted_data.get("Data de Abertura", "N/A"))
+    pdf.add_field("Natureza Jurídica", extracted_data.get("Natureza Jurídica", "N/A"))
+    pdf.add_field("Porte da Empresa", extracted_data.get("Porte da Empresa", "N/A"))
+    pdf.add_field("Capital Social", extracted_data.get("Capital Social", "N/A"))
+    pdf.add_field("Última Atualização Dados", extracted_data.get("Última Atualização Dados", "N/A"))
+    
+    # --- Seção de Situação Cadastral ---
+    pdf.add_section_title("SITUAÇÃO CADASTRAL")
+    pdf.add_field("Situação", extracted_data.get("Situação Cadastral", "N/A"))
+    pdf.add_field("Data da Situação", extracted_data.get("Data Situação Cadastral", "N/A"))
+    pdf.add_field("Motivo da Situação", extracted_data.get("Motivo Situação Cadastral", "N/A"))
+    pdf.add_field("Situação Especial", extracted_data.get("Situação Especial", "N/A"))
+    
+    # Formata a Data Situação Especial, que pode vir como YYYY-MM-DD
+    status_special_date = extracted_data.get("Data Situação Especial", "N/A")
+    if status_special_date and status_special_date != 'N/A' and isinstance(status_special_date, str) and len(status_special_date) >= 10:
+        try:
+            dt_object_esp = datetime.datetime.strptime(status_special_date[:10], '%Y-%m-%d')
+            status_special_date = dt_object_esp.strftime("%d/%m/%Y")
+        except ValueError:
+            pass # Mantém como está se a conversão falhar
+    pdf.add_field("Data Situação Especial", status_special_date)
+    
+    # --- Seção de Regimes Tributários ---
+    pdf.add_section_title("REGIMES TRIBUTÁRIOS")
+    pdf.add_field("Optante Simples Nacional", f"{extracted_data.get('Optante Simples Nacional', 'N/A')} (Desde {extracted_data.get('Início Simples Nacional', 'N/A')})", is_multiline=True)
+    pdf.add_field("Optante SIMEI", f"{extracted_data.get('Optante SIMEI', 'N/A')} (Desde {extracted_data.get('Início SIMEI', 'N/A')})", is_multiline=True)
+
+    # --- Seção de Endereço ---
+    pdf.add_section_title("ENDEREÇO")
+    pdf.add_field("Logradouro", extracted_data.get('Logradouro', 'N/A'))
+    pdf.add_field("Número", extracted_data.get('Número', 'N/A'))
+    pdf.add_field("Complemento", extracted_data.get('Complemento', 'N/A'))
+    pdf.add_field("Bairro", extracted_data.get('Bairro', 'N/A'))
+    pdf.add_field("Município", extracted_data.get('Município', 'N/A'))
+    pdf.add_field("UF", extracted_data.get('UF', 'N/A'))
+    pdf.add_field("CEP", extracted_data.get('CEP', 'N/A'))
+    pdf.add_field("País", extracted_data.get('País', 'N/A'))
+
+    # --- Seção de Atividades ---
+    pdf.add_section_title("ATIVIDADES ECONÔMICAS")
+    pdf.add_field("CNAE Principal", extracted_data.get("CNAE Principal", "N/A"), is_multiline=True)
+    
+    cnaes_secundarios_list = []
+    if extracted_data.get("CNAEs Secundários", "N/A") != "N/A":
+        cnaes_secundarios_list = extracted_data["CNAEs Secundários"].split('\n')
+    pdf.add_list_items("CNAEs Secundários", cnaes_secundarios_list)
+
+    # --- Seção de Contatos ---
+    pdf.add_section_title("CONTATOS")
+    phones_list = []
+    if extracted_data.get("Telefones", "N/A") != "N/A":
+        phones_list = extracted_data["Telefones"].split('\n')
+    pdf.add_list_items("Telefones", phones_list)
+
+    emails_list = []
+    if extracted_data.get("Emails", "N/A") != "N/A":
+        emails_list = extracted_data["Emails"].split('\n')
+    pdf.add_list_items("Emails", emails_list)
+
+    # --- Seção de Sócios ---
+    pdf.add_section_title("QUADRO DE SÓCIOS E ADMINISTRADORES (QSA)")
+    socios_blocks_formatted = []
+    if extracted_data.get('Sócios', 'N/A') != 'N/A':
+        socio_items_raw = extracted_data['Sócios'].split('\n\n')
+        for block in socio_items_raw:
+            lines = [line.strip() for line in block.split('\n') if line.strip()]
+            if lines: # Apenas adiciona se houver linhas válidas
+                socios_blocks_formatted.append("\n".join(lines))
+
+    if socios_blocks_formatted:
+        pdf.set_font('Arial', '', 9)
+        for i, socio_info in enumerate(socios_blocks_formatted):
+            pdf.set_font('Arial', 'B', 9)
+            pdf.cell(0, 6, f"Sócio {i+1}:", 0, 1, 'L')
+            pdf.set_font('Arial', '', 9)
+            pdf.multi_cell(0, 5, socio_info)
+            pdf.ln(2) # Mais espaço entre sócios
+    else:
+        pdf.set_font('Arial', '', 9)
+        pdf.cell(0, 6, "N/A", 0, 1, 'L')
+    
+    # --- Seção de Inscrições Estaduais ---
+    pdf.add_section_title("INSCRIÇÕES ESTADUAIS")
+    ie_blocks_formatted = []
+    if extracted_data.get("Inscricoes Estaduais", "N/A") != "N/A":
+        ie_items_raw = extracted_data["Inscricoes Estaduais"].split('\n\n')
+        for block in ie_items_raw:
+            lines = [line.strip() for line in block.split('\n') if line.strip()]
+            if lines: # Apenas adiciona se houver linhas válidas
+                ie_blocks_formatted.append("\n".join(lines))
+
+    if ie_blocks_formatted:
+        pdf.set_font('Arial', '', 9)
+        for i, ie_info in enumerate(ie_blocks_formatted):
+            pdf.set_font('Arial', 'B', 9)
+            pdf.cell(0, 6, f"Inscrição Estadual {i+1}:", 0, 1, 'L')
+            pdf.set_font('Arial', '', 9)
+            pdf.multi_cell(0, 5, ie_info)
+            pdf.ln(2) # Mais espaço entre IEs
+    else:
+        pdf.set_font('Arial', '', 9)
+        pdf.cell(0, 6, "N/A", 0, 1, 'L')
+
+    # Retorna o conteúdo do PDF como bytes
+    buffer = io.BytesIO()
+    pdf.output(buffer, 'S') 
+    return buffer.getvalue()
+
 
 # --- Interface Streamlit ---
 st.set_page_config(page_title="Consulta CNPJ", layout="centered")
@@ -625,6 +803,8 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             value = st.session_state.last_consulted_data.get(key, 'N/A')
             
             # Special handling for "Data Situação Especial"
+            # Esta formatação é apenas para a exibição no Streamlit, o valor original no extracted_data
+            # pode ser YYYY-MM-DD e será reformatado no PDF
             if key == "Data Situação Especial" and value != 'N/A' and isinstance(value, str) and len(value) >= 10:
                 try:
                     dt_object_esp = datetime.datetime.strptime(value[:10], '%Y-%m-%d')
@@ -767,6 +947,7 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
                     data_for_excel[key_multi_line] = data_for_excel[key_multi_line].replace("\n\n", " || ").replace("\n", " | ") 
 
             # Reformatar Data Situação Especial para o Excel, se necessário
+            # (Aqui, o valor em last_consulted_data pode ser YYYY-MM-DD, então reformatamos)
             if "Data Situação Especial" in data_for_excel and data_for_excel["Data Situação Especial"] != 'N/A':
                 try:
                     dt_obj_esp = datetime.datetime.strptime(data_for_excel["Data Situação Especial"], '%Y-%m-%d')
@@ -829,3 +1010,20 @@ if "last_consulted_data" in st.session_state and st.session_state.last_consulted
             )
         else:
             st.warning("Nenhum dado para gerar Cartão CNPJ TXT.")
+
+    # NOVO: Botão Imprimir em PDF
+    if st.button("🖨️ Imprimir em PDF", key="print_pdf_button"):
+        if st.session_state.last_consulted_data:
+            with st.spinner("Gerando PDF..."):
+                # Chama a função de geração de PDF
+                pdf_content = generate_cnpj_pdf_report(st.session_state.last_consulted_data)
+            
+            st.download_button(
+                label="Clique para Baixar PDF",
+                data=pdf_content,
+                file_name=f"Relatorio_CNPJ_Completo_{clean_cnpj(st.session_state.last_consulted_data['CNPJ'])}.pdf",
+                mime="application/pdf",
+                key="download_pdf"
+            )
+        else:
+            st.warning("Nenhum dado consultado para gerar o PDF.")
