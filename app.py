@@ -14,7 +14,7 @@ st.set_page_config(page_title="Consulta CNPJ", layout="centered")
 # --- Adicionar o Logo ---
 # Caminho para o logo dentro do seu repositório
 # Certifique-se de que o arquivo 'logo.png' está em uma pasta 'images' na raiz do seu projeto
-logo_path = "images/logo.png"
+logo_path = "images_2/logo.png"
 
 # Exibir o logo no topo da página
 # Ajuste 'width' conforme necessário para o tamanho desejado
